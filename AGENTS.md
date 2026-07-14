@@ -18,9 +18,9 @@ Stages 3 and 4 contain both CRUD APIs. Stages 5A and 5B contain the outer-card a
 inner-card management UI. Stage 6A contains basic ordered outer-card review, Stage 6B
 adds read-only inner content, and Stage 6C adds the persistent automatic-display
 preference. Stage 7A adds the global ordered inner-card collection API, and Stage 7B
-adds independent ordered inner-card review. Shuffle and global review
-shortcuts remain outside the implemented scope. Keep future changes narrowly aligned
-with the requested iteration.
+adds independent ordered inner-card review. Stage 8A adds seeded, URL-restorable outer
+review shuffle. Inner-review shuffle and global review shortcuts remain outside the
+implemented scope. Keep future changes narrowly aligned with the requested iteration.
 
 ## Architecture conventions
 
@@ -46,9 +46,23 @@ with the requested iteration.
 - Outer review lives at `/review/outer` and `/review/outer/{outerCardId}`. React Router
   owns the selected card, TanStack Query owns the complete ordered deck, and component
   state owns presentation state such as flip side and display mode.
-- Build the ordered outer-review deck by fetching all outer-card list pages through the
-  reported `total`; never silently treat one API page as the complete deck. Preserve the
-  backend order and do not reorder or randomize Stage 6A cards in the browser.
+- Build the ordered outer-review source deck by fetching all outer-card list pages
+  through the reported `total`; never silently treat one API page as the complete deck.
+  Preserve the backend order as the ordered mode and only derive shuffled queues through
+  the Stage 8A deterministic utility.
+- Outer shuffled rounds use `?mode=shuffle&seed={seed}`. The URL owns mode and seed;
+  TanStack Query continues to own only the complete backend-ordered deck. Derive one
+  complete deterministic Fisher–Yates permutation from that deck and seed without
+  mutating the source or caching the derived queue as server data.
+- Directory links, Previous, and Next must preserve the active outer shuffled round.
+  Selecting Shuffle while already shuffled keeps the current seed. A new shuffled round
+  generates a different seed and starts at its first card. Switching to Ordered keeps
+  the current card while removing shuffle parameters. Invalid parameters fall back to
+  Ordered.
+- Outer-card create, update, and delete mutations must invalidate
+  `outerReviewKeys.orderedDeck()`. An active shuffled queue is always re-derived from the
+  latest complete source deck and current seed, so deleted cards cannot survive in a
+  standalone permutation.
 - Changing the selected outer review card must reset flip mode to the front.
   Simultaneous display mode may persist across card navigation, but changing back to
   flip mode starts on the front. Do not add global keyboard review shortcuts until a
@@ -86,7 +100,8 @@ with the requested iteration.
 - Changing the selected inner review card resets flip mode to the front. Simultaneous
   display may persist across navigation, but switching back to flip mode starts on the
   front. Inner-review display state is independent of the outer-review automatic-inner
-  preference.
+  preference. Do not add shuffle to inner review until a later stage explicitly requests
+  it.
 - Local frontend development uses the Vite `/api` proxy to port 8000. Use
   `VITE_API_BASE_URL` only when an explicit API origin is required; Vite reads the
   repository-root `.env` through `envDir`.

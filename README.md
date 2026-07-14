@@ -300,7 +300,7 @@ npm run test -- src/pages/InnerCardsManagement.test.tsx
 npm run test -- src/lib/innerCards.test.ts
 ```
 
-## Basic outer-card review
+## Outer-card review
 
 Open <http://localhost:5173/review/outer>, or select **Start outer review** from the
 card-management directory. When the ordered deck is available, the route redirects to
@@ -310,6 +310,7 @@ history, direct navigation, and shared URLs.
 The review interface provides:
 
 - a directory containing the complete ordered outer-card deck;
+- ordered mode and complete-queue shuffled rounds;
 - front/back flip mode using either the card or an explicit button;
 - a simultaneous mode that displays the prompt and answer together;
 - a manual control for showing or hiding the selected word's inner usage content;
@@ -319,8 +320,37 @@ The review interface provides:
 
 The frontend follows the API's stable `sort_order`, `created_at`, and `id` order. It
 fetches every API page needed to reach `total`, rather than treating the 200-card page
-limit as the full deck. Changing cards resets flip mode to the front. Simultaneous mode
-remains active while navigating, and returning to flip mode starts on the front.
+limit as the full deck. This complete backend-ordered deck remains the only server-data
+source for both order modes.
+
+Ordered mode is the default and keeps the existing URL:
+
+```text
+/review/outer/{outerCardId}
+```
+
+Starting Shuffle creates one deterministic Fisher–Yates permutation containing every
+currently available outer card exactly once. A shuffled round is identified in the URL:
+
+```text
+/review/outer/{outerCardId}?mode=shuffle&seed={seed}
+```
+
+The same complete source deck and unsigned 32-bit seed always reconstruct the same
+queue. Refresh, browser navigation, directory selection, Previous, and Next therefore
+preserve the shuffled round and its progress without localStorage. Invalid mode or seed
+values are replaced with the safe ordered URL. **New shuffled round** creates a new seed
+and begins at position one; selecting Shuffle while already shuffled keeps the current
+round. Switching to Ordered removes the shuffle parameters while keeping the selected
+card.
+
+TanStack Query owns only the complete backend-ordered deck. React Router owns review
+mode and seed, and a pure utility derives the active queue without mutating or caching a
+second server deck. Outer-card create, update, and delete operations invalidate the
+ordered source, so an active seed is re-applied to the latest available card collection.
+Changing Flip/Show both, inner-content visibility, or its automatic preference does not
+change the seed or queue. Changing cards resets flip mode to the front. Simultaneous
+mode remains active while navigating, and returning to flip mode starts on the front.
 
 Select **Show inner content** to lazy-load every inner card belonging to the current
 outer card. The separate read-only usage panel preserves the backend's stable order and
@@ -348,14 +378,15 @@ does not contain create, edit, or delete actions. Inner-card create, update, and
 operations invalidate the affected parent’s aggregated review-content query, while
 deleting an outer card removes only that parent’s review-content cache.
 
-Shuffle, global keyboard shortcuts, ratings, spaced repetition, and review history are
-not implemented yet.
+Inner-review shuffle, global keyboard shortcuts, ratings, spaced repetition, and review
+history are not implemented yet.
 
 Run the focused review tests with:
 
 ```bash
 cd frontend
 npm run test -- src/lib/outerReview.test.ts
+npm run test -- src/lib/reviewShuffle.test.ts
 npm run test -- src/pages/OuterReviewPage.test.tsx
 ```
 
@@ -397,8 +428,8 @@ and returning to Flip mode starts on the front. These controls are independent o
 outer-review automatic-inner-content browser preference. Inner review remains read-only:
 editing is available through the management link rather than inside the review card.
 
-Shuffle, keyboard review shortcuts, ratings, spaced repetition, and review history are
-explicitly outside Stage 7B.
+Inner-review shuffle, keyboard review shortcuts, ratings, spaced repetition, and review
+history remain unimplemented.
 
 Run the focused inner-review tests with:
 

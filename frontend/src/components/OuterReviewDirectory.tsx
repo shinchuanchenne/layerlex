@@ -5,6 +5,8 @@ import type { OuterCard } from "../lib/outerCards";
 interface OuterReviewDirectoryProps {
   cards: OuterCard[];
   currentCardId?: string;
+  isShuffled: boolean;
+  roundQuery: string;
   isLoading: boolean;
   errorMessage?: string;
   onRetry: () => void;
@@ -13,6 +15,8 @@ interface OuterReviewDirectoryProps {
 export function OuterReviewDirectory({
   cards,
   currentCardId,
+  isShuffled,
+  roundQuery,
   isLoading,
   errorMessage,
   onRetry,
@@ -24,7 +28,7 @@ export function OuterReviewDirectory({
     >
       <header className="border-b border-slate-800 px-5 py-6 sm:px-7">
         <p className="text-xs font-bold tracking-[0.22em] text-cyan-300 uppercase">
-          Outer review
+          {isShuffled ? "Shuffled outer review" : "Ordered outer review"}
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">LayerLex</h1>
         <nav
@@ -73,13 +77,20 @@ export function OuterReviewDirectory({
             </p>
           </div>
         ) : (
-          <ol aria-label="Ordered outer review deck" className="space-y-2">
+          <ol
+            aria-label={
+              isShuffled
+                ? "Shuffled outer review deck"
+                : "Ordered outer review deck"
+            }
+            className="space-y-2"
+          >
             {cards.map((card, index) => {
               const isCurrent = card.id === currentCardId;
               return (
                 <li key={card.id}>
                   <Link
-                    to={"/review/outer/" + card.id}
+                    to={"/review/outer/" + card.id + roundQuery}
                     aria-current={isCurrent ? "page" : undefined}
                     className={
                       "block rounded-xl border p-3 transition focus:ring-2 focus:ring-cyan-300 focus:outline-none " +

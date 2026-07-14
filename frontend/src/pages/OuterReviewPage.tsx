@@ -1,6 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import {
+  Link,
+  Navigate,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 
 import {
   OuterReviewCard,
@@ -12,9 +18,25 @@ import { getApiErrorMessage } from "../lib/api";
 import { fetchCompleteOuterReviewDeck } from "../lib/outerReview";
 import { outerReviewKeys } from "../lib/outerReviewKeys";
 import { useAutoShowInnerContentPreference } from "../lib/outerReviewPreferences";
+import type { OuterCard } from "../lib/outerCards";
+import {
+  deterministicShuffle,
+  generateShuffleSeed,
+  parseShuffleSeed,
+} from "../lib/reviewShuffle";
+
+const EMPTY_OUTER_REVIEW_DECK: OuterCard[] = [];
+
+function buildReviewUrl(outerCardId: string, shuffleSeed?: number) {
+  const path = "/review/outer/" + outerCardId;
+  return shuffleSeed === undefined
+    ? path
+    : path + "?mode=shuffle&seed=" + shuffleSeed;
+}
 
 export function OuterReviewPage() {
   const { outerCardId } = useParams<{ outerCardId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [displayMode, setDisplayMode] =
     useState<OuterReviewDisplayMode>("flip");
@@ -27,7 +49,26 @@ export function OuterReviewPage() {
     staleTime: 0,
   });
 
-  const deck = deckQuery.data ?? [];
+  const orderedDeck = deckQuery.data ?? EMPTY_OUTER_REVIEW_DECK;
+  const modeParam = searchParams.get("mode");
+  const seedParam = searchParams.get("seed");
+  const shuffleSeed = parseShuffleSeed(seedParam);
+  const isShuffled = modeParam === "shuffle" && shuffleSeed !== null;
+  const activeShuffleSeed = isShuffled ? (shuffleSeed ?? undefined) : undefined;
+  const hasInvalidRoundParameters =
+    (modeParam !== null && modeParam !== "shuffle") ||
+    (modeParam === "shuffle" && shuffleSeed === null) ||
+    (modeParam === null && seedParam !== null);
+  const deck = useMemo(
+    () =>
+      isShuffled
+        ? deterministicShuffle(orderedDeck, activeShuffleSeed ?? 0)
+        : orderedDeck,
+    [activeShuffleSeed, isShuffled, orderedDeck],
+  );
+  const roundQuery = isShuffled
+    ? "?mode=shuffle&seed=" + activeShuffleSeed
+    : "";
   const currentIndex = outerCardId
     ? deck.findIndex((card) => card.id === outerCardId)
     : -1;
@@ -36,13 +77,41 @@ export function OuterReviewPage() {
     ? getApiErrorMessage(deckQuery.error)
     : undefined;
 
-  if (!deckQuery.isPending && !deckError && deck.length > 0 && !outerCardId) {
-    return <Navigate to={"/review/outer/" + deck[0].id} replace />;
+  if (!deckQuery.isPending && !deckError && deck.length > 0) {
+    if (hasInvalidRoundParameters) {
+      return (
+        <Navigate
+          to={buildReviewUrl(outerCardId ?? orderedDeck[0].id)}
+          replace
+        />
+      );
+    }
+    if (!outerCardId) {
+      return (
+        <Navigate to={buildReviewUrl(deck[0].id, activeShuffleSeed)} replace />
+      );
+    }
   }
 
   function goToIndex(index: number) {
     const card = deck[index];
-    if (card) navigate("/review/outer/" + card.id);
+    if (card) {
+      navigate(buildReviewUrl(card.id, activeShuffleSeed));
+    }
+  }
+
+  function selectOrderedMode() {
+    if (currentCard) navigate(buildReviewUrl(currentCard.id));
+  }
+
+  function startShuffledRound(forceNewRound: boolean) {
+    if (isShuffled && !forceNewRound) return;
+
+    let nextSeed = generateShuffleSeed();
+    if (nextSeed === activeShuffleSeed) nextSeed = (nextSeed + 1) >>> 0;
+    const shuffledDeck = deterministicShuffle(orderedDeck, nextSeed);
+    const firstCard = shuffledDeck[0];
+    if (firstCard) navigate(buildReviewUrl(firstCard.id, nextSeed));
   }
 
   return (
@@ -50,6 +119,8 @@ export function OuterReviewPage() {
       <OuterReviewDirectory
         cards={deck}
         currentCardId={outerCardId}
+        isShuffled={isShuffled}
+        roundQuery={roundQuery}
         isLoading={deckQuery.isPending}
         errorMessage={deckError}
         onRetry={() => void deckQuery.refetch()}
@@ -111,7 +182,9 @@ export function OuterReviewPage() {
             <header className="mb-7 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-sm font-bold tracking-[0.18em] text-cyan-700 uppercase">
-                  Ordered outer review
+                  {isShuffled
+                    ? "Shuffled outer review"
+                    : "Ordered outer review"}
                 </p>
                 <output
                   aria-label="Review progress"
@@ -121,6 +194,45 @@ export function OuterReviewPage() {
                 </output>
               </div>
               <div className="flex flex-wrap items-center gap-3">
+                <div
+                  role="group"
+                  aria-label="Review order mode"
+                  className="inline-flex rounded-full border border-slate-300 bg-white p-1"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={!isShuffled}
+                    onClick={selectOrderedMode}
+                    className={
+                      "rounded-full px-4 py-2 text-sm font-semibold focus:ring-2 focus:ring-cyan-600 focus:outline-none " +
+                      (!isShuffled
+                        ? "bg-slate-950 text-white"
+                        : "text-slate-600 hover:bg-slate-100")
+                    }
+                  >
+                    Ordered
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={isShuffled}
+                    onClick={() => startShuffledRound(false)}
+                    className={
+                      "rounded-full px-4 py-2 text-sm font-semibold focus:ring-2 focus:ring-cyan-600 focus:outline-none " +
+                      (isShuffled
+                        ? "bg-slate-950 text-white"
+                        : "text-slate-600 hover:bg-slate-100")
+                    }
+                  >
+                    Shuffle
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => startShuffledRound(true)}
+                  className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:ring-2 focus:ring-cyan-600 focus:outline-none"
+                >
+                  New shuffled round
+                </button>
                 <div
                   role="group"
                   aria-label="Review display mode"
@@ -216,7 +328,11 @@ export function OuterReviewPage() {
             />
 
             <nav
-              aria-label="Ordered review navigation"
+              aria-label={
+                isShuffled
+                  ? "Shuffled review navigation"
+                  : "Ordered review navigation"
+              }
               className="mt-8 grid grid-cols-[1fr_auto_1fr] items-center gap-3"
             >
               <button
@@ -228,7 +344,7 @@ export function OuterReviewPage() {
                 Previous card
               </button>
               <span className="text-sm font-medium text-slate-500">
-                Ordered deck
+                {isShuffled ? "Shuffled round" : "Ordered deck"}
               </span>
               <button
                 type="button"

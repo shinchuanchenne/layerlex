@@ -15,6 +15,7 @@ import {
   type OuterCard,
   type OuterCardListResponse,
 } from "../lib/outerCards";
+import { outerReviewKeys } from "../lib/outerReviewKeys";
 
 vi.mock("../lib/outerCards", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/outerCards")>();
@@ -94,13 +95,14 @@ function renderApp(route = "/cards") {
       mutations: { retry: false },
     },
   });
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[route]}>
         <App />
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...view, queryClient };
 }
 
 beforeEach(() => {
@@ -458,5 +460,61 @@ describe("outer-card deletion", () => {
     expect(
       screen.getByRole("heading", { name: firstCard.term }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("outer-review source-deck cache coherence", () => {
+  function seedReviewDeck(queryClient: QueryClient) {
+    queryClient.setQueryData(outerReviewKeys.orderedDeck(), [
+      firstCard,
+      secondCard,
+    ]);
+  }
+
+  function expectReviewDeckInvalidated(queryClient: QueryClient) {
+    expect(
+      queryClient.getQueryState(outerReviewKeys.orderedDeck())?.isInvalidated,
+    ).toBe(true);
+  }
+
+  it("invalidates the ordered source deck after create", async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderApp();
+    seedReviewDeck(queryClient);
+    await screen.findByRole("link", { name: /経験/ });
+    await user.click(screen.getByRole("button", { name: "Add card" }));
+    await user.type(screen.getByLabelText(/Term/), "確認");
+    await user.type(screen.getByLabelText(/Meaning/), "確認");
+    await user.click(screen.getByRole("button", { name: "Create card" }));
+
+    await waitFor(() => expect(createOuterCard).toHaveBeenCalled());
+    expectReviewDeckInvalidated(queryClient);
+  });
+
+  it("invalidates the ordered source deck after update", async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderApp("/cards/" + firstCard.id);
+    seedReviewDeck(queryClient);
+    await screen.findByRole("heading", { name: firstCard.term });
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    const meaning = screen.getByLabelText(/Meaning/);
+    await user.clear(meaning);
+    await user.type(meaning, "更新後的意思");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(updateOuterCard).toHaveBeenCalled());
+    expectReviewDeckInvalidated(queryClient);
+  });
+
+  it("invalidates the ordered source deck after delete", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { queryClient } = renderApp("/cards/" + firstCard.id);
+    seedReviewDeck(queryClient);
+    await screen.findByRole("heading", { name: firstCard.term });
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(deleteOuterCard).toHaveBeenCalled());
+    expectReviewDeckInvalidated(queryClient);
   });
 });

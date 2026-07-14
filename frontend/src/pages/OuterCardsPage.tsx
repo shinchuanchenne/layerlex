@@ -83,6 +83,9 @@ export function OuterCardsPage() {
         createdCard,
       );
       void queryClient.invalidateQueries({ queryKey: outerCardKeys.lists() });
+      void queryClient.invalidateQueries({
+        queryKey: outerReviewKeys.orderedDeck(),
+      });
       setFormMode(null);
       navigate("/cards/" + createdCard.id);
     },
@@ -103,6 +106,9 @@ export function OuterCardsPage() {
       );
       updateLists(updatedCard);
       void queryClient.invalidateQueries({ queryKey: outerCardKeys.lists() });
+      void queryClient.invalidateQueries({
+        queryKey: outerReviewKeys.orderedDeck(),
+      });
       setFormMode(null);
     },
   });
@@ -131,6 +137,9 @@ export function OuterCardsPage() {
         },
       );
       void queryClient.invalidateQueries({ queryKey: outerCardKeys.lists() });
+      void queryClient.invalidateQueries({
+        queryKey: outerReviewKeys.orderedDeck(),
+      });
       queryClient.removeQueries({
         queryKey: innerCardKeys.parentLists(deletedCardId),
       });

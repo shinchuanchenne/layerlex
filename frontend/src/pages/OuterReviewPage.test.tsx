@@ -1,7 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../App";
@@ -20,7 +26,12 @@ import {
   fetchCompleteOuterReviewDeck,
   fetchCompleteOuterReviewInnerContent,
 } from "../lib/outerReview";
+import { outerReviewKeys } from "../lib/outerReviewKeys";
 import { OUTER_REVIEW_AUTO_INNER_CONTENT_KEY } from "../lib/outerReviewPreferences";
+import {
+  deterministicShuffle,
+  generateShuffleSeed,
+} from "../lib/reviewShuffle";
 
 vi.mock("../lib/outerReview", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/outerReview")>();
@@ -53,6 +64,11 @@ vi.mock("../lib/innerCards", async (importOriginal) => {
     updateInnerCard: vi.fn(),
     deleteInnerCard: vi.fn(),
   };
+});
+
+vi.mock("../lib/reviewShuffle", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/reviewShuffle")>();
+  return { ...actual, generateShuffleSeed: vi.fn() };
 });
 
 const firstCard: OuterCard = {
@@ -123,6 +139,15 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+function LocationProbe() {
+  const location = useLocation();
+  return (
+    <output aria-label="Current route">
+      {location.pathname + location.search}
+    </output>
+  );
+}
+
 function renderApp(route = "/review/outer") {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -131,13 +156,15 @@ function renderApp(route = "/review/outer") {
     },
   });
 
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[route]}>
         <App />
+        <LocationProbe />
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...view, queryClient };
 }
 
 beforeEach(() => {
@@ -146,6 +173,7 @@ beforeEach(() => {
   vi.mocked(fetchCompleteOuterReviewInnerContent).mockResolvedValue([
     fullInnerCard,
   ]);
+  vi.mocked(generateShuffleSeed).mockReturnValue(20260714);
   vi.mocked(listOuterCards).mockResolvedValue({
     items: [],
     total: 0,
@@ -729,5 +757,285 @@ describe("persistent automatic inner-content display", () => {
     expect(
       await screen.findByRole("button", { name: "Hide inner content" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("outer review ordered and shuffled rounds", () => {
+  function expectShuffledDirectoryOrder(expectedDeck: OuterCard[]) {
+    const directory = screen.getByLabelText("Shuffled outer review deck");
+    const links = within(directory).getAllByRole("link");
+    expect(links).toHaveLength(expectedDeck.length);
+    expectedDeck.forEach((card, index) => {
+      expect(links[index]).toHaveTextContent(card.term);
+    });
+  }
+
+  it("keeps ordered mode as the default", async () => {
+    renderApp("/review/outer/" + secondCard.id);
+
+    expect(await screen.findByLabelText("Review progress")).toHaveTextContent(
+      "2 / 3",
+    );
+    expect(screen.getByRole("button", { name: "Ordered" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Shuffle" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/review/outer/" + secondCard.id,
+    );
+  });
+
+  it("starts one seeded shuffled round at its first card", async () => {
+    const user = userEvent.setup();
+    const seed = 20260714;
+    const expectedQueue = deterministicShuffle(deck, seed);
+    renderApp("/review/outer/" + firstCard.id);
+    await screen.findByLabelText("Review progress");
+
+    await user.click(screen.getByRole("button", { name: "Shuffle" }));
+
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/review/outer/" + expectedQueue[0].id + "?mode=shuffle&seed=" + seed,
+    );
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("1 / 3");
+    expect(screen.getByText("Shuffled round")).toBeInTheDocument();
+    expectShuffledDirectoryOrder(expectedQueue);
+    expect(generateShuffleSeed).toHaveBeenCalledTimes(1);
+    expect(fetchCompleteOuterReviewDeck).toHaveBeenCalledTimes(1);
+  });
+
+  it("restores the same shuffled queue and progress after remount", async () => {
+    const seed = 13579;
+    const expectedQueue = deterministicShuffle(deck, seed);
+    const route =
+      "/review/outer/" + expectedQueue[1].id + "?mode=shuffle&seed=" + seed;
+    const firstView = renderApp(route);
+
+    expect(await screen.findByLabelText("Review progress")).toHaveTextContent(
+      "2 / 3",
+    );
+    expectShuffledDirectoryOrder(expectedQueue);
+    firstView.unmount();
+
+    renderApp(route);
+    expect(await screen.findByLabelText("Review progress")).toHaveTextContent(
+      "2 / 3",
+    );
+    expectShuffledDirectoryOrder(expectedQueue);
+    expect(generateShuffleSeed).not.toHaveBeenCalled();
+  });
+
+  it("preserves mode and seed through navigation and directory selection", async () => {
+    const user = userEvent.setup();
+    const seed = 24680;
+    const expectedQueue = deterministicShuffle(deck, seed);
+    renderApp(
+      "/review/outer/" + expectedQueue[0].id + "?mode=shuffle&seed=" + seed,
+    );
+    await screen.findByLabelText("Review progress");
+
+    await user.click(screen.getByRole("button", { name: "Next card" }));
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("2 / 3");
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/review/outer/" + expectedQueue[1].id + "?mode=shuffle&seed=" + seed,
+    );
+
+    await user.click(
+      screen.getByRole("link", { name: new RegExp(expectedQueue[2].term) }),
+    );
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("3 / 3");
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "?mode=shuffle&seed=" + seed,
+    );
+    await user.click(screen.getByRole("button", { name: "Previous card" }));
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("2 / 3");
+  });
+
+  it("does not reshuffle for presentation or inner-content controls", async () => {
+    const user = userEvent.setup();
+    const seed = 86420;
+    const expectedQueue = deterministicShuffle(deck, seed);
+    const route =
+      "/review/outer/" + expectedQueue[0].id + "?mode=shuffle&seed=" + seed;
+    renderApp(route);
+    await screen.findByLabelText("Review progress");
+
+    await user.click(screen.getByRole("button", { name: "Show answer" }));
+    await user.click(screen.getByRole("button", { name: "Show both" }));
+    await user.click(
+      screen.getByRole("button", { name: "Show inner content" }),
+    );
+    await screen.findByText(fullInnerCard.expression);
+    await user.click(
+      screen.getByRole("switch", {
+        name: /Automatically show inner content/,
+      }),
+    );
+
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(route);
+    expectShuffledDirectoryOrder(expectedQueue);
+    expect(generateShuffleSeed).not.toHaveBeenCalled();
+    expect(fetchCompleteOuterReviewDeck).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts a different shuffled round at position one", async () => {
+    const user = userEvent.setup();
+    const oldSeed = 100;
+    const newSeed = 200;
+    vi.mocked(generateShuffleSeed).mockReturnValue(newSeed);
+    const newQueue = deterministicShuffle(deck, newSeed);
+    renderApp(
+      "/review/outer/" +
+        deterministicShuffle(deck, oldSeed)[1].id +
+        "?mode=shuffle&seed=" +
+        oldSeed,
+    );
+    await screen.findByLabelText("Review progress");
+
+    await user.click(
+      screen.getByRole("button", { name: "New shuffled round" }),
+    );
+
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/review/outer/" + newQueue[0].id + "?mode=shuffle&seed=" + newSeed,
+    );
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("1 / 3");
+    expectShuffledDirectoryOrder(newQueue);
+  });
+
+  it("keeps the current round when Shuffle is selected again", async () => {
+    const user = userEvent.setup();
+    const seed = 333;
+    const queue = deterministicShuffle(deck, seed);
+    const route = "/review/outer/" + queue[1].id + "?mode=shuffle&seed=" + seed;
+    renderApp(route);
+    await screen.findByLabelText("Review progress");
+
+    await user.click(screen.getByRole("button", { name: "Shuffle" }));
+
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(route);
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("2 / 3");
+    expect(generateShuffleSeed).not.toHaveBeenCalled();
+  });
+
+  it("switches to ordered mode while preserving the current card", async () => {
+    const user = userEvent.setup();
+    const seed = 444;
+    const current = deterministicShuffle(deck, seed)[1];
+    renderApp("/review/outer/" + current.id + "?mode=shuffle&seed=" + seed);
+    await screen.findByLabelText("Review progress");
+
+    await user.click(screen.getByRole("button", { name: "Ordered" }));
+
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/review/outer/" + current.id,
+    );
+    expect(screen.getByLabelText("Current route")).not.toHaveTextContent(
+      "mode=shuffle",
+    );
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent(
+      deck.findIndex((card) => card.id === current.id) + 1 + " / 3",
+    );
+  });
+
+  it.each(["?mode=shuffle&seed=invalid", "?mode=random&seed=5", "?seed=5"])(
+    "canonically falls back to ordered mode for %s",
+    async (query) => {
+      renderApp("/review/outer/" + secondCard.id + query);
+
+      expect(await screen.findByLabelText("Review progress")).toHaveTextContent(
+        "2 / 3",
+      );
+      expect(screen.getByRole("button", { name: "Ordered" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(screen.getByLabelText("Current route")).toHaveTextContent(
+        "/review/outer/" + secondCard.id,
+      );
+      expect(screen.getByLabelText("Current route")).not.toHaveTextContent("?");
+    },
+  );
+
+  it("recovers an unknown card to the active shuffled queue's first card", async () => {
+    const user = userEvent.setup();
+    const seed = 555;
+    const queue = deterministicShuffle(deck, seed);
+    renderApp("/review/outer/missing?mode=shuffle&seed=" + seed);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Review card not found",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Return to first review card" }),
+    );
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/review/outer/" + queue[0].id + "?mode=shuffle&seed=" + seed,
+    );
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("1 / 3");
+  });
+
+  it("handles a one-card shuffled deck and new round safely", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchCompleteOuterReviewDeck).mockResolvedValue([firstCard]);
+    vi.mocked(generateShuffleSeed).mockReturnValue(777);
+    renderApp("/review/outer/" + firstCard.id + "?mode=shuffle&seed=666");
+
+    expect(await screen.findByLabelText("Review progress")).toHaveTextContent(
+      "1 / 1",
+    );
+    expect(
+      screen.getByRole("button", { name: "Previous card" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next card" })).toBeDisabled();
+    await user.click(
+      screen.getByRole("button", { name: "New shuffled round" }),
+    );
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/review/outer/" + firstCard.id + "?mode=shuffle&seed=777",
+    );
+  });
+
+  it("re-derives the active queue when the ordered source deck changes", async () => {
+    const seed = 888;
+    const { queryClient } = renderApp(
+      "/review/outer/" + firstCard.id + "?mode=shuffle&seed=" + seed,
+    );
+    await screen.findByLabelText("Review progress");
+
+    queryClient.setQueryData(outerReviewKeys.orderedDeck(), [
+      firstCard,
+      thirdCard,
+    ]);
+
+    const expectedQueue = deterministicShuffle([firstCard, thirdCard], seed);
+    const expectedProgress =
+      expectedQueue.findIndex((card) => card.id === firstCard.id) + 1;
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Review progress")).toHaveTextContent(
+        expectedProgress + " / 2",
+      ),
+    );
+    expect(
+      within(screen.getByLabelText("Shuffled outer review deck")).queryByText(
+        secondCard.term,
+      ),
+    ).not.toBeInTheDocument();
+    expectShuffledDirectoryOrder(expectedQueue);
+  });
+
+  it("does not add global keyboard navigation", async () => {
+    renderApp("/review/outer/" + firstCard.id);
+    await screen.findByLabelText("Review progress");
+
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    fireEvent.keyDown(document, { key: " " });
+
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("1 / 3");
   });
 });

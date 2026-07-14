@@ -386,4 +386,17 @@ describe("inner review parent context and regressions", () => {
 
     expect(listOuterCards).toHaveBeenCalledTimes(1);
   });
+
+  it("does not add shuffle controls or query state to inner review", async () => {
+    renderApp("/review/inner/" + firstInner.id + "?mode=shuffle&seed=20260714");
+
+    expect(
+      await screen.findByLabelText("Inner review progress"),
+    ).toHaveTextContent("1 / 3");
+    expect(screen.queryByRole("button", { name: "Shuffle" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "New shuffled round" }),
+    ).toBeNull();
+    expect(screen.getByText("Ordered deck")).toBeInTheDocument();
+  });
 });
