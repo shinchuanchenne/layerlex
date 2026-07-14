@@ -14,8 +14,8 @@ complete-queue shuffled review, and progress display. Do not add authentication,
 cloud deployment, AI-generated vocabulary, spaced repetition, Redux, Firebase,
 Supabase, Next.js, or a component library unless the user explicitly expands scope.
 
-Stage 3 contains the outer-card CRUD API. Inner-card CRUD endpoints, management UI, and
-review behavior are not implemented yet. Keep future changes narrowly aligned with the
+Stages 3 and 4 contain the outer-card and inner-card CRUD APIs. Management UI and review
+behavior are not implemented yet. Keep future changes narrowly aligned with the
 requested iteration.
 
 ## Architecture conventions
@@ -31,9 +31,15 @@ requested iteration.
 - Outer-card CRUD routes live at `/api/v1/outer-cards`. Keep API request/response schemas
   separate from SQLModel table models, and never include inner-card content in the
   outer-card list or retrieve responses unless a later contract explicitly requests it.
+- Create and list inner cards at
+  `/api/v1/outer-cards/{outer_card_id}/inner-cards`. Retrieve, update, and delete a
+  known inner card at `/api/v1/inner-cards/{inner_card_id}`. The parent relationship is
+  chosen at creation and must not be mutable through the inner-card update contract.
 - Normalize API strings at the schema boundary: trim all strings, reject blank required
   values, and convert blank optional strings to `null`.
 - Outer-card lists use stable ordering by `sort_order`, `created_at`, then `id`.
+- Inner-card lists are always scoped to one existing outer card and use stable ordering
+  by `sort_order`, `created_at`, then `id`.
 - Organize FastAPI endpoints by resource under `backend/app/api/routes/`.
 - Put settings and database wiring under `backend/app/core/`.
 - Use SQLModel models for persistence and Pydantic response/request models at API

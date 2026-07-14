@@ -5,9 +5,9 @@ word; its inner cards teach natural usage through collocations, phrases, pattern
 examples.
 
 This repository currently contains the project foundation, outer and inner card database
-models, and the outer-card CRUD API. It includes a React health page, intentional SQLite
-file storage, Alembic migrations, and development tooling. It does not yet contain
-inner-card CRUD endpoints, management pages, or review features.
+models, and CRUD APIs for both card layers. It includes a React health page, intentional
+SQLite file storage, Alembic migrations, and development tooling. It does not yet
+contain management pages or review features.
 
 ## Stack
 
@@ -173,6 +173,58 @@ strings become `null`. List results are ordered by `sort_order`, `created_at`, t
 The list and retrieve responses intentionally omit inner-card content. Interactive API
 documentation and request schemas are available at <http://localhost:8000/docs>.
 
+## Inner-card API
+
+Create and list inner cards through their outer-card relationship. Retrieve, update,
+and delete a known inner card directly:
+
+| Method | Path | Result |
+| --- | --- | --- |
+| `POST` | `/api/v1/outer-cards/{outer_id}/inner-cards` | Create an inner card and return HTTP 201 |
+| `GET` | `/api/v1/outer-cards/{outer_id}/inner-cards` | List, search, and paginate one outer card's inner cards |
+| `GET` | `/api/v1/inner-cards/{inner_id}` | Retrieve one inner card |
+| `PATCH` | `/api/v1/inner-cards/{inner_id}` | Partially update one inner card |
+| `DELETE` | `/api/v1/inner-cards/{inner_id}` | Delete one inner card and return HTTP 204 |
+
+Create an inner card by replacing `{outer_id}` with an existing outer-card UUID:
+
+```bash
+curl --request POST \
+  http://localhost:8000/api/v1/outer-cards/{outer_id}/inner-cards \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "expression": "経験を積む",
+    "reading": "けいけんをつむ",
+    "meaning": "累積經驗",
+    "usage_note": "常用搭配",
+    "sort_order": 0
+  }'
+```
+
+List all inner cards for that outer card, or search their expression, reading, meaning,
+and usage note:
+
+```bash
+curl 'http://localhost:8000/api/v1/outer-cards/{outer_id}/inner-cards?offset=0&limit=50'
+curl 'http://localhost:8000/api/v1/outer-cards/{outer_id}/inner-cards?search=経験'
+```
+
+Update or delete an inner card by replacing `{inner_id}` with its UUID:
+
+```bash
+curl --request PATCH http://localhost:8000/api/v1/inner-cards/{inner_id} \
+  --header 'Content-Type: application/json' \
+  --data '{"meaning":"增加經驗"}'
+
+curl --request DELETE http://localhost:8000/api/v1/inner-cards/{inner_id}
+```
+
+The outer-card relationship is set by the create URL and cannot be changed through the
+update API. Inner-card lists include only the selected outer card and use stable
+ordering by `sort_order`, `created_at`, then `id`. Deleting one inner card preserves
+its parent and siblings; deleting an outer card still cascades to all of its inner
+cards.
+
 ## Validation
 
 Frontend:
@@ -194,11 +246,12 @@ python -m ruff format --check .
 python -m pytest
 ```
 
-Run only the outer-card API tests:
+Run only one card layer's API tests:
 
 ```bash
 cd backend
 python -m pytest tests/test_outer_cards_api.py
+python -m pytest tests/test_inner_cards_api.py
 ```
 
 Database and migrations:

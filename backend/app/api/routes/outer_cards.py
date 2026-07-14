@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
+from app.api.errors import OUTER_CARD_NOT_FOUND
 from app.core.database import get_session
 from app.models import OuterCard
 from app.schemas.outer_card import (
@@ -16,7 +17,6 @@ from app.schemas.outer_card import (
 
 router = APIRouter(prefix="/outer-cards", tags=["outer cards"])
 SessionDependency = Annotated[Session, Depends(get_session)]
-OUTER_CARD_NOT_FOUND = "Outer card not found"
 
 
 def _get_outer_card_or_404(outer_card_id: UUID, session: Session) -> OuterCard:

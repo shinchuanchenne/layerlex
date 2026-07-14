@@ -7,35 +7,34 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from app.schemas.validation import strip_optional_string, strip_required_string
 
 
-class OuterCardCreate(BaseModel):
+class InnerCardCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    term: str
+    expression: str
     reading: str | None = None
-    part_of_speech: str | None = None
     meaning: str
-    jlpt_level: str | None = None
+    usage_note: str | None = None
     notes: str | None = None
     sort_order: int = 0
 
-    _normalise_required = field_validator("term", "meaning", mode="before")(strip_required_string)
+    _normalise_required = field_validator("expression", "meaning", mode="before")(
+        strip_required_string
+    )
     _normalise_optional = field_validator(
         "reading",
-        "part_of_speech",
-        "jlpt_level",
+        "usage_note",
         "notes",
         mode="before",
     )(strip_optional_string)
 
 
-class OuterCardUpdate(BaseModel):
+class InnerCardUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    term: str | None = None
+    expression: str | None = None
     reading: str | None = None
-    part_of_speech: str | None = None
     meaning: str | None = None
-    jlpt_level: str | None = None
+    usage_note: str | None = None
     notes: str | None = None
     sort_order: int | None = None
 
@@ -45,38 +44,39 @@ class OuterCardUpdate(BaseModel):
         if isinstance(value, dict):
             if not value:
                 raise ValueError("at least one field must be provided")
-            for field_name in ("term", "meaning", "sort_order"):
+            for field_name in ("expression", "meaning", "sort_order"):
                 if field_name in value and value[field_name] is None:
                     raise ValueError(f"{field_name} cannot be null")
         return value
 
-    _normalise_required = field_validator("term", "meaning", mode="before")(strip_required_string)
+    _normalise_required = field_validator("expression", "meaning", mode="before")(
+        strip_required_string
+    )
     _normalise_optional = field_validator(
         "reading",
-        "part_of_speech",
-        "jlpt_level",
+        "usage_note",
         "notes",
         mode="before",
     )(strip_optional_string)
 
 
-class OuterCardRead(BaseModel):
+class InnerCardRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    term: str
+    outer_card_id: UUID
+    expression: str
     reading: str | None
-    part_of_speech: str | None
     meaning: str
-    jlpt_level: str | None
+    usage_note: str | None
     notes: str | None
     sort_order: int
     created_at: datetime
     updated_at: datetime
 
 
-class OuterCardListResponse(BaseModel):
-    items: list[OuterCardRead]
+class InnerCardListResponse(BaseModel):
+    items: list[InnerCardRead]
     total: int
     offset: int
     limit: int
