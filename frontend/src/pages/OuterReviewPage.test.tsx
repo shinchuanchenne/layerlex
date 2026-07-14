@@ -1028,14 +1028,182 @@ describe("outer review ordered and shuffled rounds", () => {
     ).not.toBeInTheDocument();
     expectShuffledDirectoryOrder(expectedQueue);
   });
+});
 
-  it("does not add global keyboard navigation", async () => {
+describe("outer review keyboard shortcuts", () => {
+  it("shows boundary-aware keyboard help", async () => {
+    const user = userEvent.setup();
+    renderApp("/review/outer/" + firstCard.id);
+    await screen.findByLabelText("Review progress");
+    const help = screen.getByLabelText("Keyboard shortcuts");
+    const helpItems = within(help).getAllByRole("listitem");
+
+    expect(helpItems[0]).toHaveTextContent("← Previous (unavailable)");
+    expect(helpItems[1]).toHaveTextContent("→ Next");
+    expect(helpItems[2]).toHaveTextContent("Space Flip mode only");
+
+    await user.click(screen.getByRole("button", { name: "Show both" }));
+    expect(helpItems[2]).toHaveTextContent(
+      "Space Flip mode only (unavailable in Show both)",
+    );
+  });
+
+  it("navigates the ordered queue with non-wrapping arrows and clean URLs", async () => {
     renderApp("/review/outer/" + firstCard.id);
     await screen.findByLabelText("Review progress");
 
-    fireEvent.keyDown(document, { key: "ArrowRight" });
-    fireEvent.keyDown(document, { key: " " });
-
+    expect(fireEvent.keyDown(document, { key: "ArrowLeft" })).toBe(true);
     expect(screen.getByLabelText("Review progress")).toHaveTextContent("1 / 3");
+
+    expect(fireEvent.keyDown(document, { key: "ArrowRight" })).toBe(false);
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("2 / 3");
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/review/outer/" + secondCard.id,
+    );
+
+    expect(fireEvent.keyDown(document, { key: "ArrowLeft" })).toBe(false);
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("1 / 3");
+
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("3 / 3");
+    expect(fireEvent.keyDown(document, { key: "ArrowRight" })).toBe(true);
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("3 / 3");
+  });
+
+  it("follows and preserves a fixed shuffled queue with arrow navigation", async () => {
+    const seed = 9090;
+    const queue = deterministicShuffle(deck, seed);
+    renderApp("/review/outer/" + queue[0].id + "?mode=shuffle&seed=" + seed);
+    await screen.findByLabelText("Review progress");
+    const directory = screen.getByLabelText("Shuffled outer review deck");
+    const initialOrder = within(directory)
+      .getAllByRole("link")
+      .map((link) => link.getAttribute("href"));
+
+    expect(fireEvent.keyDown(document, { key: "ArrowRight" })).toBe(false);
+
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("2 / 3");
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/review/outer/" + queue[1].id + "?mode=shuffle&seed=" + seed,
+    );
+    expect(
+      within(directory)
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href")),
+    ).toEqual(initialOrder);
+    expect(generateShuffleSeed).not.toHaveBeenCalled();
+    expect(fetchCompleteOuterReviewDeck).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps card click, explicit controls, and global Space on one flip state", async () => {
+    const user = userEvent.setup();
+    renderApp("/review/outer/" + firstCard.id);
+    await screen.findByLabelText("Review progress");
+    const workspace = screen.getByLabelText("Outer review workspace");
+
+    expect(fireEvent.keyDown(document, { key: " " })).toBe(false);
+    expect(within(workspace).getByText(firstCard.meaning)).toBeVisible();
+    expect(fireEvent.keyDown(document, { key: "Spacebar" })).toBe(false);
+    expect(within(workspace).queryByText(firstCard.meaning)).toBeNull();
+
+    await user.click(
+      within(workspace).getByRole("button", { name: "Show answer" }),
+    );
+    expect(within(workspace).getByText(firstCard.meaning)).toBeVisible();
+    fireEvent.keyDown(document, { key: " " });
+    expect(within(workspace).queryByText(firstCard.meaning)).toBeNull();
+
+    const flashcard = within(workspace).getByRole("button", {
+      name: "Flashcard front. Click to reveal answer.",
+    });
+    flashcard.focus();
+    await user.keyboard(" ");
+    expect(within(workspace).getByText(firstCard.meaning)).toBeVisible();
+  });
+
+  it("ignores Space in Show both without changing display mode or URL", async () => {
+    const user = userEvent.setup();
+    const route = "/review/outer/" + firstCard.id + "?mode=shuffle&seed=123";
+    renderApp(route);
+    await screen.findByLabelText("Review progress");
+    await user.click(screen.getByRole("button", { name: "Show both" }));
+
+    expect(fireEvent.keyDown(document, { key: " " })).toBe(true);
+
+    expect(screen.getByRole("button", { name: "Show both" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(route);
+    expect(generateShuffleSeed).not.toHaveBeenCalled();
+  });
+
+  it("applies automatic inner content after arrow navigation without letting Space toggle the panel", async () => {
+    window.localStorage.setItem(OUTER_REVIEW_AUTO_INNER_CONTENT_KEY, "true");
+    renderApp("/review/outer/" + firstCard.id);
+    await screen.findByLabelText("Review progress");
+    expect(
+      await screen.findByRole("button", { name: "Hide inner content" }),
+    ).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("2 / 3");
+    expect(
+      await screen.findByRole("button", { name: "Hide inner content" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(fetchCompleteOuterReviewInnerContent).toHaveBeenCalledWith(
+      secondCard.id,
+    );
+
+    fireEvent.keyDown(document, { key: " " });
+    expect(
+      screen.getByRole("button", { name: "Hide inner content" }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("does not install effective shortcuts outside a usable review card", async () => {
+    const pending = deferred<OuterCard[]>();
+    vi.mocked(fetchCompleteOuterReviewDeck).mockReturnValueOnce(
+      pending.promise,
+    );
+    const loadingView = renderApp("/review/outer/" + firstCard.id);
+    expect(
+      await screen.findByText("Preparing the complete ordered review deck…"),
+    ).toHaveAttribute("role", "status");
+    expect(fireEvent.keyDown(document, { key: "ArrowRight" })).toBe(true);
+    loadingView.unmount();
+
+    vi.mocked(fetchCompleteOuterReviewDeck).mockRejectedValueOnce(
+      new ApiError(503, "Review unavailable"),
+    );
+    const errorView = renderApp("/review/outer/" + firstCard.id);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Review unavailable",
+    );
+    expect(fireEvent.keyDown(document, { key: "ArrowRight" })).toBe(true);
+    errorView.unmount();
+
+    vi.mocked(fetchCompleteOuterReviewDeck).mockResolvedValueOnce([]);
+    const emptyView = renderApp("/review/outer");
+    expect(await screen.findByText("Empty deck")).toBeInTheDocument();
+    expect(fireEvent.keyDown(document, { key: " " })).toBe(true);
+    emptyView.unmount();
+
+    vi.mocked(fetchCompleteOuterReviewDeck).mockResolvedValueOnce(deck);
+    const missingView = renderApp("/review/outer/missing");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Review card not found",
+    );
+    expect(fireEvent.keyDown(document, { key: "ArrowRight" })).toBe(true);
+    missingView.unmount();
+
+    renderApp("/cards");
+    expect(
+      await screen.findByRole("heading", { name: "Select a vocabulary word" }),
+    ).toBeInTheDocument();
+    expect(fireEvent.keyDown(document, { key: "ArrowRight" })).toBe(true);
+    expect(screen.getByLabelText("Current route")).toHaveTextContent("/cards");
   });
 });

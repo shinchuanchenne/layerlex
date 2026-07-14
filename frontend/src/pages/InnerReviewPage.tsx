@@ -13,6 +13,7 @@ import {
   type InnerReviewDisplayMode,
 } from "../components/InnerReviewCard";
 import { InnerReviewDirectory } from "../components/InnerReviewDirectory";
+import { ReviewKeyboardHelp } from "../components/ReviewKeyboardHelp";
 import { getApiErrorMessage } from "../lib/api";
 import { fetchCompleteInnerReviewDeck } from "../lib/innerReview";
 import { innerReviewKeys } from "../lib/innerReviewKeys";
@@ -325,6 +326,16 @@ export function InnerReviewPage() {
               card={currentCard}
               parent={currentParent}
               mode={displayMode}
+              canGoPrevious={currentIndex > 0}
+              canGoNext={currentIndex < deck.length - 1}
+              onPrevious={() => goToIndex(currentIndex - 1)}
+              onNext={() => goToIndex(currentIndex + 1)}
+            />
+
+            <ReviewKeyboardHelp
+              canGoPrevious={currentIndex > 0}
+              canGoNext={currentIndex < deck.length - 1}
+              canFlip={displayMode === "flip"}
             />
 
             <nav

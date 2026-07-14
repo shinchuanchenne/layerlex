@@ -378,8 +378,7 @@ does not contain create, edit, or delete actions. Inner-card create, update, and
 operations invalidate the affected parent’s aggregated review-content query, while
 deleting an outer card removes only that parent’s review-content cache.
 
-Global keyboard shortcuts, ratings, spaced repetition, and review history are not
-implemented yet.
+Ratings, spaced repetition, and review history are not implemented yet.
 
 Run the focused review tests with:
 
@@ -455,8 +454,7 @@ and returning to Flip mode starts on the front. These controls are independent o
 outer-review automatic-inner-content browser preference. Inner review remains read-only:
 editing is available through the management link rather than inside the review card.
 
-Keyboard review shortcuts, ratings, spaced repetition, and review history remain
-unimplemented.
+Ratings, spaced repetition, and review history remain unimplemented.
 
 Run the focused inner-review tests with:
 
@@ -465,6 +463,39 @@ cd frontend
 npm run test -- src/lib/innerReview.test.ts
 npm run test -- src/pages/InnerReviewPage.test.tsx
 ```
+
+### Review keyboard shortcuts
+
+Outer and inner review share the same supplemental keyboard controls in both Ordered
+and Shuffle rounds:
+
+- `ArrowLeft` moves to the previous card when one exists.
+- `ArrowRight` moves to the next card when one exists.
+- `Space` toggles front and back only while Flip mode is active.
+
+Arrow navigation follows the current active queue, does not wrap at either boundary,
+and preserves the existing clean ordered URL or shuffled `mode` and `seed`. Space does
+not navigate, change display mode, show or hide outer-review inner content, generate a
+new seed, or refetch the deck. Show both ignores Space and continues to display both
+sides. Changing cards and switching from Show both back to Flip mode still start on the
+front.
+
+The card button, explicit Show answer/Show front button, and Space all operate on the
+card component's single flip state. A shared review hook handles only guarded keyboard
+events; each review page remains responsible for its own active queue and URL.
+
+Shortcuts are active only while a valid current card is rendered on an outer- or
+inner-review page. They are ignored during loading, errors, empty decks, unknown-card
+recovery, and throughout card management. Input, textarea, select, contenteditable,
+textbox-like targets, modifier combinations, and already-prevented events are ignored.
+Space is additionally ignored on buttons, links, switches, and other interactive
+controls so their native activation remains intact and the flashcard button cannot
+double-toggle. Arrow keys remain available from ordinary non-editable review buttons.
+Default browser behavior is prevented only when an available review action is handled.
+
+Both review pages retain visible Previous, Next, and flip buttons plus compact,
+boundary-aware keyboard help; no action is available only through a shortcut. Custom
+shortcut settings, ratings, spaced repetition, and review history are not implemented.
 
 ## Validation
 

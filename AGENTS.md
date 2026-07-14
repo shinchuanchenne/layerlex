@@ -20,8 +20,8 @@ adds read-only inner content, and Stage 6C adds the persistent automatic-display
 preference. Stage 7A adds the global ordered inner-card collection API, and Stage 7B
 adds independent ordered inner-card review. Stage 8A adds seeded, URL-restorable outer
 review shuffle, and Stage 8B applies the same complete-round model to inner review.
-Global review shortcuts remain outside the implemented scope. Keep future changes
-narrowly aligned with the requested iteration.
+Stage 9 adds guarded ArrowLeft, ArrowRight, and Space shortcuts to both review pages.
+Keep future changes narrowly aligned with the requested iteration.
 
 ## Architecture conventions
 
@@ -66,8 +66,7 @@ narrowly aligned with the requested iteration.
   standalone permutation.
 - Changing the selected outer review card must reset flip mode to the front.
   Simultaneous display mode may persist across card navigation, but changing back to
-  flip mode starts on the front. Do not add global keyboard review shortcuts until a
-  later stage explicitly requests them.
+  flip mode starts on the front.
 - Review inner content uses a separate `outer-review` query key scoped by outer-card ID
   and fetches all inner-card pages through the reported `total`. It is lazy-loaded only
   after manual expansion and remains separate from the outer card's front/back fields.
@@ -114,8 +113,20 @@ narrowly aligned with the requested iteration.
 - Changing the selected inner review card resets flip mode to the front. Simultaneous
   display may persist across navigation, but switching back to flip mode starts on the
   front. Inner-review display state is independent of the outer-review automatic-inner
-  preference. Do not add global keyboard review shortcuts until a later stage explicitly
-  requests them.
+  preference.
+- Both review card components use the shared `useReviewKeyboardShortcuts` hook.
+  ArrowLeft and ArrowRight call page-owned active-queue navigation without wrapping;
+  Space toggles the card component's existing flip state only in Flip mode. Keyboard,
+  card click, and explicit Show answer/Show front controls must share that one state.
+- Review shortcuts are mounted only while a valid current review card is rendered.
+  Ignore modified or already-prevented events and every shortcut from editable targets.
+  Also ignore Space from buttons, links, switches, and other interactive controls so
+  native activation cannot double-toggle. Prevent default only when an available review
+  action runs. Ordered and shuffled URLs, seeds, inner-content behavior, and parent
+  context remain page-owned and unchanged by the hook.
+- Keep visible, boundary-aware keyboard help on both review pages. Shortcuts supplement
+  the existing buttons and must never be the only way to perform an action. Do not add
+  review shortcuts to management or other application pages.
 - Local frontend development uses the Vite `/api` proxy to port 8000. Use
   `VITE_API_BASE_URL` only when an explicit API origin is required; Vite reads the
   repository-root `.env` through `envDir`.

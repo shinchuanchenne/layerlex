@@ -14,6 +14,7 @@ import {
 } from "../components/OuterReviewCard";
 import { OuterReviewDirectory } from "../components/OuterReviewDirectory";
 import { OuterReviewInnerContent } from "../components/OuterReviewInnerContent";
+import { ReviewKeyboardHelp } from "../components/ReviewKeyboardHelp";
 import { getApiErrorMessage } from "../lib/api";
 import { fetchCompleteOuterReviewDeck } from "../lib/outerReview";
 import { outerReviewKeys } from "../lib/outerReviewKeys";
@@ -318,6 +319,16 @@ export function OuterReviewPage() {
               key={currentCard.id + ":" + displayMode}
               card={currentCard}
               mode={displayMode}
+              canGoPrevious={currentIndex > 0}
+              canGoNext={currentIndex < deck.length - 1}
+              onPrevious={() => goToIndex(currentIndex - 1)}
+              onNext={() => goToIndex(currentIndex + 1)}
+            />
+
+            <ReviewKeyboardHelp
+              canGoPrevious={currentIndex > 0}
+              canGoNext={currentIndex < deck.length - 1}
+              canFlip={displayMode === "flip"}
             />
 
             <OuterReviewInnerContent

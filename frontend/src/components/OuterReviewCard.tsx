@@ -1,12 +1,17 @@
 import { useState } from "react";
 
 import type { OuterCard } from "../lib/outerCards";
+import { useReviewKeyboardShortcuts } from "../lib/useReviewKeyboardShortcuts";
 
 export type OuterReviewDisplayMode = "flip" | "simultaneous";
 
 interface OuterReviewCardProps {
   card: OuterCard;
   mode: OuterReviewDisplayMode;
+  canGoPrevious: boolean;
+  canGoNext: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
 }
 
 function AnswerFields({ card }: { card: OuterCard }) {
@@ -58,8 +63,25 @@ function AnswerFields({ card }: { card: OuterCard }) {
   );
 }
 
-export function OuterReviewCard({ card, mode }: OuterReviewCardProps) {
+export function OuterReviewCard({
+  card,
+  mode,
+  canGoPrevious,
+  canGoNext,
+  onPrevious,
+  onNext,
+}: OuterReviewCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
+  const toggleCard = () => setIsFlipped((current) => !current);
+
+  useReviewKeyboardShortcuts({
+    canGoPrevious,
+    canGoNext,
+    canFlip: mode === "flip",
+    onPrevious,
+    onNext,
+    onFlip: toggleCard,
+  });
 
   if (mode === "simultaneous") {
     return (
@@ -76,8 +98,6 @@ export function OuterReviewCard({ card, mode }: OuterReviewCardProps) {
       </article>
     );
   }
-
-  const toggleCard = () => setIsFlipped((current) => !current);
 
   return (
     <div>

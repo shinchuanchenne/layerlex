@@ -707,16 +707,182 @@ describe("inner review ordered and shuffled rounds", () => {
       "Inner review card not found",
     );
   });
+});
 
-  it("does not add global keyboard navigation", async () => {
+describe("inner review keyboard shortcuts", () => {
+  it("shows boundary-aware keyboard help", async () => {
+    const user = userEvent.setup();
+    renderApp("/review/inner/" + firstInner.id);
+    await screen.findByLabelText("Inner review progress");
+    const help = screen.getByLabelText("Keyboard shortcuts");
+    const helpItems = within(help).getAllByRole("listitem");
+
+    expect(helpItems[0]).toHaveTextContent("← Previous (unavailable)");
+    expect(helpItems[1]).toHaveTextContent("→ Next");
+    expect(helpItems[2]).toHaveTextContent("Space Flip mode only");
+
+    await user.click(screen.getByRole("button", { name: "Show both" }));
+    expect(helpItems[2]).toHaveTextContent(
+      "Space Flip mode only (unavailable in Show both)",
+    );
+  });
+
+  it("navigates the ordered queue with non-wrapping arrows and clean URLs", async () => {
     renderApp("/review/inner/" + firstInner.id);
     await screen.findByLabelText("Inner review progress");
 
-    fireEvent.keyDown(document, { key: "ArrowRight" });
-    fireEvent.keyDown(document, { key: " " });
-
+    expect(fireEvent.keyDown(document, { key: "ArrowLeft" })).toBe(true);
     expect(screen.getByLabelText("Inner review progress")).toHaveTextContent(
       "1 / 3",
     );
+
+    expect(fireEvent.keyDown(document, { key: "ArrowRight" })).toBe(false);
+    expect(screen.getByLabelText("Inner review progress")).toHaveTextContent(
+      "2 / 3",
+    );
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/review/inner/" + secondInner.id,
+    );
+
+    expect(fireEvent.keyDown(document, { key: "ArrowLeft" })).toBe(false);
+    expect(screen.getByLabelText("Inner review progress")).toHaveTextContent(
+      "1 / 3",
+    );
+
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    expect(screen.getByLabelText("Inner review progress")).toHaveTextContent(
+      "3 / 3",
+    );
+    expect(fireEvent.keyDown(document, { key: "ArrowRight" })).toBe(true);
+  });
+
+  it("follows and preserves a fixed shuffled queue with arrow navigation", async () => {
+    const seed = 7070;
+    const queue = deterministicShuffle(innerDeck, seed);
+    renderApp("/review/inner/" + queue[0].id + "?mode=shuffle&seed=" + seed);
+    await screen.findByLabelText("Inner review progress");
+    const directory = screen.getByLabelText("Shuffled inner review deck");
+    const initialOrder = within(directory)
+      .getAllByRole("link")
+      .map((link) => link.getAttribute("href"));
+
+    expect(fireEvent.keyDown(document, { key: "ArrowRight" })).toBe(false);
+
+    expect(screen.getByLabelText("Inner review progress")).toHaveTextContent(
+      "2 / 3",
+    );
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/review/inner/" + queue[1].id + "?mode=shuffle&seed=" + seed,
+    );
+    expect(
+      within(directory)
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href")),
+    ).toEqual(initialOrder);
+    expect(generateShuffleSeed).not.toHaveBeenCalled();
+    expect(fetchCompleteInnerReviewDeck).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps card click, explicit controls, and global Space on one flip state", async () => {
+    const user = userEvent.setup();
+    renderApp("/review/inner/" + firstInner.id);
+    await screen.findByLabelText("Inner review progress");
+    const workspace = screen.getByLabelText("Inner review workspace");
+
+    expect(fireEvent.keyDown(document, { key: " " })).toBe(false);
+    expect(within(workspace).getByText(firstInner.meaning)).toBeVisible();
+    expect(fireEvent.keyDown(document, { key: "Spacebar" })).toBe(false);
+    expect(within(workspace).queryByText(firstInner.meaning)).toBeNull();
+
+    await user.click(
+      within(workspace).getByRole("button", { name: "Show answer" }),
+    );
+    expect(within(workspace).getByText(firstInner.meaning)).toBeVisible();
+    fireEvent.keyDown(document, { key: " " });
+    expect(within(workspace).queryByText(firstInner.meaning)).toBeNull();
+
+    const flashcard = within(workspace).getByRole("button", {
+      name: "Inner flashcard front. Click to reveal answer.",
+    });
+    flashcard.focus();
+    await user.keyboard(" ");
+    expect(within(workspace).getByText(firstInner.meaning)).toBeVisible();
+  });
+
+  it("ignores Space in Show both without changing display mode or URL", async () => {
+    const user = userEvent.setup();
+    const route = "/review/inner/" + firstInner.id + "?mode=shuffle&seed=321";
+    renderApp(route);
+    await screen.findByLabelText("Inner review progress");
+    await user.click(screen.getByRole("button", { name: "Show both" }));
+
+    expect(fireEvent.keyDown(document, { key: " " })).toBe(true);
+
+    expect(screen.getByRole("button", { name: "Show both" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(route);
+    expect(generateShuffleSeed).not.toHaveBeenCalled();
+  });
+
+  it("keeps shortcuts usable when parent context fails or is missing", async () => {
+    vi.mocked(fetchCompleteOuterReviewDeck).mockRejectedValue(
+      new ApiError(503, "Outer context failed"),
+    );
+    renderApp("/review/inner/" + firstInner.id);
+    await screen.findByLabelText("Inner review progress");
+    const workspace = screen.getByLabelText("Inner review workspace");
+    expect(within(workspace).getByRole("alert")).toHaveTextContent(
+      "Parent context unavailable",
+    );
+
+    fireEvent.keyDown(document, { key: " " });
+    expect(within(workspace).getByText(firstInner.meaning)).toBeVisible();
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    expect(screen.getByLabelText("Inner review progress")).toHaveTextContent(
+      "2 / 3",
+    );
+
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    expect(screen.getByLabelText("Inner review progress")).toHaveTextContent(
+      "3 / 3",
+    );
+    expect(
+      within(workspace).getByText("Parent card unavailable"),
+    ).toBeVisible();
+    fireEvent.keyDown(document, { key: " " });
+    expect(
+      within(workspace).getByText(missingParentInner.meaning),
+    ).toBeVisible();
+  });
+
+  it("does not install effective shortcuts outside a usable review card", async () => {
+    const pending = deferred<InnerCard[]>();
+    vi.mocked(fetchCompleteInnerReviewDeck).mockReturnValueOnce(
+      pending.promise,
+    );
+    const loadingView = renderApp("/review/inner/" + firstInner.id);
+    expect(
+      await screen.findByText(
+        "Preparing the complete ordered inner review deck…",
+      ),
+    ).toHaveAttribute("role", "status");
+    expect(fireEvent.keyDown(document, { key: "ArrowRight" })).toBe(true);
+    loadingView.unmount();
+
+    vi.mocked(fetchCompleteInnerReviewDeck).mockResolvedValueOnce([]);
+    const emptyView = renderApp("/review/inner");
+    expect(await screen.findByText("Empty inner deck")).toBeInTheDocument();
+    expect(fireEvent.keyDown(document, { key: " " })).toBe(true);
+    emptyView.unmount();
+
+    vi.mocked(fetchCompleteInnerReviewDeck).mockResolvedValueOnce(innerDeck);
+    renderApp("/review/inner/missing");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Inner review card not found",
+    );
+    expect(fireEvent.keyDown(document, { key: "ArrowRight" })).toBe(true);
   });
 });

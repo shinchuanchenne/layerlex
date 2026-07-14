@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import type { InnerCard } from "../lib/innerCards";
 import type { OuterCard } from "../lib/outerCards";
+import { useReviewKeyboardShortcuts } from "../lib/useReviewKeyboardShortcuts";
 
 export type InnerReviewDisplayMode = "flip" | "simultaneous";
 
@@ -9,6 +10,10 @@ interface InnerReviewCardProps {
   card: InnerCard;
   parent?: OuterCard;
   mode: InnerReviewDisplayMode;
+  canGoPrevious: boolean;
+  canGoNext: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
 }
 
 function ParentContext({ parent }: { parent?: OuterCard }) {
@@ -91,8 +96,26 @@ function FrontFields({
   );
 }
 
-export function InnerReviewCard({ card, parent, mode }: InnerReviewCardProps) {
+export function InnerReviewCard({
+  card,
+  parent,
+  mode,
+  canGoPrevious,
+  canGoNext,
+  onPrevious,
+  onNext,
+}: InnerReviewCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
+  const toggleCard = () => setIsFlipped((current) => !current);
+
+  useReviewKeyboardShortcuts({
+    canGoPrevious,
+    canGoNext,
+    canFlip: mode === "flip",
+    onPrevious,
+    onNext,
+    onFlip: toggleCard,
+  });
 
   if (mode === "simultaneous") {
     return (
@@ -109,8 +132,6 @@ export function InnerReviewCard({ card, parent, mode }: InnerReviewCardProps) {
       </article>
     );
   }
-
-  const toggleCard = () => setIsFlipped((current) => !current);
 
   return (
     <div>
