@@ -14,9 +14,9 @@ complete-queue shuffled review, and progress display. Do not add authentication,
 cloud deployment, AI-generated vocabulary, spaced repetition, Redux, Firebase,
 Supabase, Next.js, or a component library unless the user explicitly expands scope.
 
-Stage 2 contains the outer and inner card database models and migrations. CRUD APIs,
-management UI, and review behavior are not implemented yet. Keep future changes narrowly
-aligned with the requested iteration.
+Stage 3 contains the outer-card CRUD API. Inner-card CRUD endpoints, management UI, and
+review behavior are not implemented yet. Keep future changes narrowly aligned with the
+requested iteration.
 
 ## Architecture conventions
 
@@ -28,6 +28,12 @@ aligned with the requested iteration.
   and API access in `frontend/src/lib/`.
 - Expose backend application routes under `/api/v1`. Keep `/health` unversioned for
   infrastructure liveness checks.
+- Outer-card CRUD routes live at `/api/v1/outer-cards`. Keep API request/response schemas
+  separate from SQLModel table models, and never include inner-card content in the
+  outer-card list or retrieve responses unless a later contract explicitly requests it.
+- Normalize API strings at the schema boundary: trim all strings, reject blank required
+  values, and convert blank optional strings to `null`.
+- Outer-card lists use stable ordering by `sort_order`, `created_at`, then `id`.
 - Organize FastAPI endpoints by resource under `backend/app/api/routes/`.
 - Put settings and database wiring under `backend/app/core/`.
 - Use SQLModel models for persistence and Pydantic response/request models at API
@@ -84,7 +90,7 @@ cd ../backend
 python -m ruff check .
 python -m ruff format --check .
 python -m pytest
-alembic upgrade head
+python -m alembic upgrade head
 test -f data/layerlex.db
 ```
 

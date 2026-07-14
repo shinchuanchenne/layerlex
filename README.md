@@ -4,10 +4,10 @@ LayerLex is a dual-layer vocabulary flashcard application. An outer card teaches
 word; its inner cards teach natural usage through collocations, phrases, patterns, and
 examples.
 
-This repository currently contains the project foundation plus the outer and inner card
-database models. It includes a React health page, a FastAPI health API, intentional
-SQLite file storage, Alembic migrations, and development tooling. It does not yet
-contain flashcard CRUD APIs, management pages, or review features.
+This repository currently contains the project foundation, outer and inner card database
+models, and the outer-card CRUD API. It includes a React health page, intentional SQLite
+file storage, Alembic migrations, and development tooling. It does not yet contain
+inner-card CRUD endpoints, management pages, or review features.
 
 ## Stack
 
@@ -58,8 +58,8 @@ The `.nvmrc` and `backend/.python-version` files document the expected runtime v
    source .venv/bin/activate
    python -m pip install --upgrade pip
    python -m pip install -e '.[dev]'
-   alembic upgrade head
-   uvicorn app.main:app --reload --port 8000
+   python -m alembic upgrade head
+   python -m uvicorn app.main:app --reload --port 8000
    ```
 
 3. In another terminal, set up the frontend:
@@ -124,6 +124,55 @@ WAL produces temporary `-wal` and `-shm` files beside the database. They are run
 data and are ignored by Git. The database and all WAL-related files must remain on the
 same local EBS-backed filesystem in production.
 
+## Outer-card API
+
+The outer-card endpoints are available under `/api/v1/outer-cards`:
+
+| Method | Path | Result |
+| --- | --- | --- |
+| `POST` | `/api/v1/outer-cards` | Create a card and return HTTP 201 |
+| `GET` | `/api/v1/outer-cards` | List, search, and paginate cards |
+| `GET` | `/api/v1/outer-cards/{id}` | Retrieve one card |
+| `PATCH` | `/api/v1/outer-cards/{id}` | Partially update one card |
+| `DELETE` | `/api/v1/outer-cards/{id}` | Delete one card and return HTTP 204 |
+
+Create a card:
+
+```bash
+curl --request POST http://localhost:8000/api/v1/outer-cards \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "term": "スケジュール",
+    "reading": "スケジュール",
+    "part_of_speech": "名詞",
+    "meaning": "行程、計畫",
+    "jlpt_level": "N4",
+    "sort_order": 0
+  }'
+```
+
+List or search cards:
+
+```bash
+curl 'http://localhost:8000/api/v1/outer-cards?offset=0&limit=50'
+curl 'http://localhost:8000/api/v1/outer-cards?search=スケジュール'
+```
+
+Update and delete a card by replacing `{id}` with its UUID:
+
+```bash
+curl --request PATCH http://localhost:8000/api/v1/outer-cards/{id} \
+  --header 'Content-Type: application/json' \
+  --data '{"meaning":"日程"}'
+
+curl --request DELETE http://localhost:8000/api/v1/outer-cards/{id}
+```
+
+All string inputs are trimmed. Blank required fields are rejected, while blank optional
+strings become `null`. List results are ordered by `sort_order`, `created_at`, then `id`.
+The list and retrieve responses intentionally omit inner-card content. Interactive API
+documentation and request schemas are available at <http://localhost:8000/docs>.
+
 ## Validation
 
 Frontend:
@@ -145,12 +194,19 @@ python -m ruff format --check .
 python -m pytest
 ```
 
+Run only the outer-card API tests:
+
+```bash
+cd backend
+python -m pytest tests/test_outer_cards_api.py
+```
+
 Database and migrations:
 
 ```bash
 cd backend
-alembic upgrade head
-alembic current
+python -m alembic upgrade head
+python -m alembic current
 test -f data/layerlex.db
 ```
 
@@ -163,10 +219,10 @@ Health endpoints:
 
 ```bash
 # Apply new migrations
-cd backend && alembic upgrade head
+cd backend && python -m alembic upgrade head
 
 # Create a migration after adding SQLModel metadata
-cd backend && alembic revision --autogenerate -m "describe change"
+cd backend && python -m alembic revision --autogenerate -m "describe change"
 ```
 
 ## Single-instance EC2 storage

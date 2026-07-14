@@ -49,4 +49,8 @@ engine = create_database_engine(get_settings().database_url)
 
 def get_session() -> Generator[Session, None, None]:
     with Session(engine) as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            session.rollback()
+            raise
