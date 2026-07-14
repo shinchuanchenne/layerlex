@@ -19,8 +19,9 @@ inner-card management UI. Stage 6A contains basic ordered outer-card review, Sta
 adds read-only inner content, and Stage 6C adds the persistent automatic-display
 preference. Stage 7A adds the global ordered inner-card collection API, and Stage 7B
 adds independent ordered inner-card review. Stage 8A adds seeded, URL-restorable outer
-review shuffle. Inner-review shuffle and global review shortcuts remain outside the
-implemented scope. Keep future changes narrowly aligned with the requested iteration.
+review shuffle, and Stage 8B applies the same complete-round model to inner review.
+Global review shortcuts remain outside the implemented scope. Keep future changes
+narrowly aligned with the requested iteration.
 
 ## Architecture conventions
 
@@ -97,11 +98,24 @@ implemented scope. Keep future changes narrowly aligned with the requested itera
   Inner-card create, update, and delete mutations invalidate it; deleting an outer card
   removes it because cascade deletion changes the global collection. Preserve existing
   parent-scoped outer-review cache behavior.
+- Inner shuffled rounds use `?mode=shuffle&seed={seed}` and the shared Stage 8A
+  deterministic Fisher–Yates utility. React Router owns mode and seed, while TanStack
+  Query owns only the complete backend-ordered inner source deck. Never duplicate the
+  PRNG, mutate the source deck, or cache the derived permutation as server data.
+- Inner-review directory links, Previous, and Next must preserve the active seed and
+  use the same derived queue as progress. Selecting Shuffle during a shuffled round
+  keeps it; New shuffled round generates a different seed and begins at position one;
+  switching to Ordered keeps the current card and removes the query parameters.
+- Parent context remains an independent complete outer-deck query and ID map in both
+  inner order modes. Source-deck invalidation must re-derive the active queue from the
+  latest inner cards so deleted cards cannot survive and new cards can join the round.
+  Invalid round parameters canonically fall back to Ordered, including for an empty
+  source deck.
 - Changing the selected inner review card resets flip mode to the front. Simultaneous
   display may persist across navigation, but switching back to flip mode starts on the
   front. Inner-review display state is independent of the outer-review automatic-inner
-  preference. Do not add shuffle to inner review until a later stage explicitly requests
-  it.
+  preference. Do not add global keyboard review shortcuts until a later stage explicitly
+  requests them.
 - Local frontend development uses the Vite `/api` proxy to port 8000. Use
   `VITE_API_BASE_URL` only when an explicit API origin is required; Vite reads the
   repository-root `.env` through `envDir`.

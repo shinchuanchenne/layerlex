@@ -7,6 +7,8 @@ interface InnerReviewDirectoryProps {
   cards: InnerCard[];
   currentCardId?: string;
   parentsById: ReadonlyMap<string, OuterCard>;
+  isShuffled: boolean;
+  roundQuery: string;
   isLoading: boolean;
   errorMessage?: string;
   onRetry: () => void;
@@ -16,6 +18,8 @@ export function InnerReviewDirectory({
   cards,
   currentCardId,
   parentsById,
+  isShuffled,
+  roundQuery,
   isLoading,
   errorMessage,
   onRetry,
@@ -77,14 +81,21 @@ export function InnerReviewDirectory({
             </p>
           </div>
         ) : (
-          <ol aria-label="Ordered inner review deck" className="space-y-2">
+          <ol
+            aria-label={
+              isShuffled
+                ? "Shuffled inner review deck"
+                : "Ordered inner review deck"
+            }
+            className="space-y-2"
+          >
             {cards.map((card, index) => {
               const isCurrent = card.id === currentCardId;
               const parent = parentsById.get(card.outer_card_id);
               return (
                 <li key={card.id}>
                   <Link
-                    to={"/review/inner/" + card.id}
+                    to={"/review/inner/" + card.id + roundQuery}
                     aria-current={isCurrent ? "page" : undefined}
                     className={
                       "block rounded-xl border p-3 transition focus:ring-2 focus:ring-violet-300 focus:outline-none " +

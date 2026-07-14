@@ -378,8 +378,8 @@ does not contain create, edit, or delete actions. Inner-card create, update, and
 operations invalidate the affected parent’s aggregated review-content query, while
 deleting an outer card removes only that parent’s review-content cache.
 
-Inner-review shuffle, global keyboard shortcuts, ratings, spaced repetition, and review
-history are not implemented yet.
+Global keyboard shortcuts, ratings, spaced repetition, and review history are not
+implemented yet.
 
 Run the focused review tests with:
 
@@ -399,10 +399,11 @@ therefore restored by refresh, browser history, direct navigation, or a shared U
 
 The inner-review interface provides:
 
-- an ordered directory containing every inner card exactly once;
+- ordered mode and complete-queue shuffled rounds containing every inner card exactly
+  once;
 - front/back flip mode through the card or an explicit Show answer button;
 - Show both mode, which remains active while moving between cards;
-- ordered Previous and Next controls with no wrapping;
+- Previous and Next controls following the active queue with no wrapping;
 - progress based on the current card's position in the complete deck;
 - the parent outer-card term and optional reading as secondary context; and
 - local loading, retry, empty-deck, unknown-card, and missing-parent states.
@@ -412,15 +413,41 @@ is reached. It preserves the backend order without sorting again. An empty page 
 `total` or a duplicate card ID fails clearly instead of silently truncating or repeating
 the deck.
 
-Parent context does not change inner-review order. The existing complete outer-review
-deck query is loaded once and converted to an in-memory map keyed by outer-card ID, so
-the interface never makes one parent request per inner card. Parent-context loading or
-failure does not block the inner deck; an unavailable parent receives a safe fallback.
+Ordered mode is the default and uses the backend-owned URL and order:
 
-The ordered inner-review deck uses its own TanStack Query key, separate from management
-and outer-review content. Inner-card create, update, and delete operations invalidate
-this deck. Deleting an outer card removes it because database cascade deletion changes
-the global inner-card collection. Existing parent-scoped outer-review invalidation
+```text
+/review/inner/{innerCardId}
+```
+
+Starting Shuffle reuses the shared deterministic Fisher–Yates utility to create one
+complete permutation. The round is identified by the same unsigned 32-bit seed format
+as outer review:
+
+```text
+/review/inner/{innerCardId}?mode=shuffle&seed={seed}
+```
+
+The URL owns mode and seed, so refresh, browser history, direct navigation, directory
+selection, Previous, and Next reconstruct and preserve the same queue and progress.
+Selecting Shuffle again keeps the current round. **New shuffled round** generates a
+different seed and begins at position one. Switching to Ordered removes the shuffle
+parameters while preserving the current inner card. Invalid parameters canonically
+return to the ordered URL, including when the source deck is empty.
+
+Parent context does not change either inner-review order mode. The existing complete
+outer-review deck query is loaded once and converted to an in-memory map keyed by
+outer-card ID, so the interface never makes one parent request per inner card.
+Parent-context loading or failure does not block the inner deck; an unavailable parent
+receives a safe fallback.
+
+The complete backend-ordered inner source deck uses its own TanStack Query key,
+separate from management and outer-review content. React Router owns round identity,
+and the shared pure shuffle utility derives the active queue without mutating the
+source or caching a second server-data deck. Inner-card create, update, and delete
+operations invalidate the source. Deleting an outer card removes it because database
+cascade deletion changes the global inner-card collection. An active seed is then
+re-applied to the latest source, preventing deleted cards from surviving while allowing
+new cards to join the permutation. Existing parent-scoped outer-review invalidation
 remains unchanged.
 
 Changing cards resets flip mode to the front. Show both persists across card changes,
@@ -428,8 +455,8 @@ and returning to Flip mode starts on the front. These controls are independent o
 outer-review automatic-inner-content browser preference. Inner review remains read-only:
 editing is available through the management link rather than inside the review card.
 
-Inner-review shuffle, keyboard review shortcuts, ratings, spaced repetition, and review
-history remain unimplemented.
+Keyboard review shortcuts, ratings, spaced repetition, and review history remain
+unimplemented.
 
 Run the focused inner-review tests with:
 

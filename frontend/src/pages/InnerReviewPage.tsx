@@ -1,6 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import {
+  Link,
+  Navigate,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 
 import {
   InnerReviewCard,
@@ -10,11 +16,27 @@ import { InnerReviewDirectory } from "../components/InnerReviewDirectory";
 import { getApiErrorMessage } from "../lib/api";
 import { fetchCompleteInnerReviewDeck } from "../lib/innerReview";
 import { innerReviewKeys } from "../lib/innerReviewKeys";
+import type { InnerCard } from "../lib/innerCards";
 import { fetchCompleteOuterReviewDeck } from "../lib/outerReview";
 import { outerReviewKeys } from "../lib/outerReviewKeys";
+import {
+  deterministicShuffle,
+  generateShuffleSeed,
+  parseShuffleSeed,
+} from "../lib/reviewShuffle";
+
+const EMPTY_INNER_REVIEW_DECK: InnerCard[] = [];
+
+function buildReviewUrl(innerCardId: string, shuffleSeed?: number) {
+  const path = "/review/inner/" + innerCardId;
+  return shuffleSeed === undefined
+    ? path
+    : path + "?mode=shuffle&seed=" + shuffleSeed;
+}
 
 export function InnerReviewPage() {
   const { innerCardId } = useParams<{ innerCardId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [displayMode, setDisplayMode] =
     useState<InnerReviewDisplayMode>("flip");
@@ -31,7 +53,26 @@ export function InnerReviewPage() {
     staleTime: 0,
   });
 
-  const deck = deckQuery.data ?? [];
+  const orderedDeck = deckQuery.data ?? EMPTY_INNER_REVIEW_DECK;
+  const modeParam = searchParams.get("mode");
+  const seedParam = searchParams.get("seed");
+  const shuffleSeed = parseShuffleSeed(seedParam);
+  const isShuffled = modeParam === "shuffle" && shuffleSeed !== null;
+  const activeShuffleSeed = isShuffled ? (shuffleSeed ?? undefined) : undefined;
+  const hasInvalidRoundParameters =
+    (modeParam !== null && modeParam !== "shuffle") ||
+    (modeParam === "shuffle" && shuffleSeed === null) ||
+    (modeParam === null && seedParam !== null);
+  const deck = useMemo(
+    () =>
+      isShuffled
+        ? deterministicShuffle(orderedDeck, activeShuffleSeed ?? 0)
+        : orderedDeck,
+    [activeShuffleSeed, isShuffled, orderedDeck],
+  );
+  const roundQuery = isShuffled
+    ? "?mode=shuffle&seed=" + activeShuffleSeed
+    : "";
   const parentsById = useMemo(
     () =>
       new Map(
@@ -53,13 +94,39 @@ export function InnerReviewPage() {
     ? getApiErrorMessage(parentDeckQuery.error)
     : undefined;
 
-  if (!deckQuery.isPending && !deckError && deck.length > 0 && !innerCardId) {
-    return <Navigate to={"/review/inner/" + deck[0].id} replace />;
+  if (!deckQuery.isPending && !deckError) {
+    if (hasInvalidRoundParameters) {
+      return (
+        <Navigate
+          to={innerCardId ? buildReviewUrl(innerCardId) : "/review/inner"}
+          replace
+        />
+      );
+    }
+    if (deck.length > 0 && !innerCardId) {
+      return (
+        <Navigate to={buildReviewUrl(deck[0].id, activeShuffleSeed)} replace />
+      );
+    }
   }
 
   function goToIndex(index: number) {
     const card = deck[index];
-    if (card) navigate("/review/inner/" + card.id);
+    if (card) navigate(buildReviewUrl(card.id, activeShuffleSeed));
+  }
+
+  function selectOrderedMode() {
+    if (currentCard) navigate(buildReviewUrl(currentCard.id));
+  }
+
+  function startShuffledRound(forceNewRound: boolean) {
+    if (isShuffled && !forceNewRound) return;
+
+    let nextSeed = generateShuffleSeed();
+    if (nextSeed === activeShuffleSeed) nextSeed = (nextSeed + 1) >>> 0;
+    const shuffledDeck = deterministicShuffle(orderedDeck, nextSeed);
+    const firstCard = shuffledDeck[0];
+    if (firstCard) navigate(buildReviewUrl(firstCard.id, nextSeed));
   }
 
   return (
@@ -68,6 +135,8 @@ export function InnerReviewPage() {
         cards={deck}
         currentCardId={innerCardId}
         parentsById={parentsById}
+        isShuffled={isShuffled}
+        roundQuery={roundQuery}
         isLoading={deckQuery.isPending}
         errorMessage={deckError}
         onRetry={() => void deckQuery.refetch()}
@@ -97,8 +166,8 @@ export function InnerReviewPage() {
               Add inner content before reviewing
             </h2>
             <p className="mt-4 leading-7 text-slate-600">
-              The ordered inner review deck will appear after an inner card is
-              added to an outer card.
+              The inner review deck will appear after an inner card is added to
+              an outer card.
             </p>
             <Link
               to="/cards"
@@ -116,7 +185,7 @@ export function InnerReviewPage() {
               Inner review card not found
             </h2>
             <p className="mt-3 leading-7 text-slate-600">
-              This card is not part of the current ordered inner review deck.
+              This card is not part of the current inner review round.
             </p>
             <button
               type="button"
@@ -131,7 +200,9 @@ export function InnerReviewPage() {
             <header className="mb-7 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-sm font-bold tracking-[0.18em] text-violet-700 uppercase">
-                  Ordered inner review
+                  {isShuffled
+                    ? "Shuffled inner review"
+                    : "Ordered inner review"}
                 </p>
                 <output
                   aria-label="Inner review progress"
@@ -141,6 +212,45 @@ export function InnerReviewPage() {
                 </output>
               </div>
               <div className="flex flex-wrap items-center gap-3">
+                <div
+                  role="group"
+                  aria-label="Inner review order mode"
+                  className="inline-flex rounded-full border border-slate-300 bg-white p-1"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={!isShuffled}
+                    onClick={selectOrderedMode}
+                    className={
+                      "rounded-full px-4 py-2 text-sm font-semibold focus:ring-2 focus:ring-violet-600 focus:outline-none " +
+                      (!isShuffled
+                        ? "bg-slate-950 text-white"
+                        : "text-slate-600 hover:bg-slate-100")
+                    }
+                  >
+                    Ordered
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={isShuffled}
+                    onClick={() => startShuffledRound(false)}
+                    className={
+                      "rounded-full px-4 py-2 text-sm font-semibold focus:ring-2 focus:ring-violet-600 focus:outline-none " +
+                      (isShuffled
+                        ? "bg-slate-950 text-white"
+                        : "text-slate-600 hover:bg-slate-100")
+                    }
+                  >
+                    Shuffle
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => startShuffledRound(true)}
+                  className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:ring-2 focus:ring-violet-600 focus:outline-none"
+                >
+                  New shuffled round
+                </button>
                 <div
                   role="group"
                   aria-label="Inner review display mode"
@@ -218,7 +328,11 @@ export function InnerReviewPage() {
             />
 
             <nav
-              aria-label="Ordered inner review navigation"
+              aria-label={
+                isShuffled
+                  ? "Shuffled inner review navigation"
+                  : "Ordered inner review navigation"
+              }
               className="mt-8 grid grid-cols-[1fr_auto_1fr] items-center gap-3"
             >
               <button
@@ -230,7 +344,7 @@ export function InnerReviewPage() {
                 Previous inner card
               </button>
               <span className="text-sm font-medium text-slate-500">
-                Ordered deck
+                {isShuffled ? "Shuffled round" : "Ordered deck"}
               </span>
               <button
                 type="button"
