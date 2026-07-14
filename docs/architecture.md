@@ -11,6 +11,8 @@ React/Vite browser app  ->  FastAPI JSON API  ->  SQLite file
 
 The frontend and backend are separately installable applications in one repository.
 SQLite runs in the backend process and requires no database server or Docker service.
+This is an intentional architecture decision for the single-user MVP, not a temporary
+test substitute.
 
 ## Technical decisions
 
@@ -39,12 +41,28 @@ The database URL remains environment-driven. Models and migrations should avoid
 unnecessary SQLite-specific behavior so the application can later move to PostgreSQL on
 Amazon RDS if its concurrency or availability requirements grow.
 
+Every SQLite engine is created through `create_database_engine()` and configures each
+connection with foreign-key enforcement, WAL journal mode, and a 5000 ms busy timeout.
+Foreign-key enforcement makes database cascades active, WAL improves read/write
+coexistence for the single application deployment, and the timeout handles short write
+lock contention without immediately failing.
+
+UUID identifiers use SQLAlchemy's portable `Uuid` representation. SQLite stores these
+as 32-character values rather than a native UUID type. Application timestamps are
+normalized to UTC; SQLite stores a timezone-free UTC value and the application restores
+UTC timezone information when reading it.
+
 ### EC2 persistence boundary
 
 The first AWS target is one backend process on one EC2 instance. Its SQLite file must
 live on an EBS-backed directory outside the application release path, such as
 `/var/lib/layerlex/layerlex.db`. The deployment must preserve that path across releases,
-run regular SQLite backups, and take EBS snapshots.
+run safe SQLite online backups, and take scheduled EBS snapshots. If the backend is ever
+containerized, `/app/data` must be persisted on that same EBS-backed filesystem instead
+of remaining in the container writable layer.
+
+The database must not be shared over EFS, NFS, or another network filesystem. The MVP
+has no shared database filesystem and no second backend instance.
 
 SQLite is no longer an appropriate deployment database once LayerLex needs multiple
 backend instances, horizontal autoscaling, high availability, or meaningful concurrent

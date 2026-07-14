@@ -14,8 +14,9 @@ complete-queue shuffled review, and progress display. Do not add authentication,
 cloud deployment, AI-generated vocabulary, spaced repetition, Redux, Firebase,
 Supabase, Next.js, or a component library unless the user explicitly expands scope.
 
-The current foundation iteration contains no flashcard domain features. Keep future
-changes narrowly aligned with the requested iteration.
+Stage 2 contains the outer and inner card database models and migrations. CRUD APIs,
+management UI, and review behavior are not implemented yet. Keep future changes narrowly
+aligned with the requested iteration.
 
 ## Architecture conventions
 
@@ -36,10 +37,26 @@ changes narrowly aligned with the requested iteration.
   application startup path.
 - Use SQLite file storage for the single-user MVP. The local database belongs at
   `backend/data/layerlex.db` and must never be committed.
+- Configure every SQLite connection with `PRAGMA foreign_keys=ON`,
+  `PRAGMA journal_mode=WAL`, and `PRAGMA busy_timeout=5000`. Do not create an engine that
+  bypasses `create_database_engine()`.
+- UUID primary keys use SQLAlchemy's portable `Uuid` type. SQLite stores them as
+  `CHAR(32)` values; SQLite does not have a native UUID type.
+- Store application timestamps in UTC and return timezone-aware UTC values. The
+  `updated_at` value is maintained by the ORM when a model is updated.
+- `OuterCard.inner_cards` requires ORM delete-orphan cascade, and
+  `InnerCard.outer_card_id` requires database `ON DELETE CASCADE`. Do not weaken either
+  side without a new requirement and migration.
 - Keep SQLModel types, constraints, and migrations portable where practical so a future
   move to PostgreSQL on Amazon RDS remains possible.
-- The initial AWS target is one application process on one EC2 instance, with the SQLite
-  file stored outside the release directory on persistent EBS-backed storage.
+- The initial AWS target is one backend deployment on one EC2 instance, with the SQLite
+  file stored outside the release directory on persistent EBS-backed storage. Do not
+  share the SQLite file through EFS, NFS, or another network filesystem.
+- Multiple backend instances and horizontal scaling are outside the MVP. Consider
+  PostgreSQL only if those requirements or many concurrent writers are introduced.
+- Production backups must use SQLite's online backup operation (for example, the
+  `sqlite3` `.backup` command) and scheduled EBS snapshots. Copying only the main `.db`
+  file while the application is writing is not an accepted backup procedure.
 - Read configuration from environment variables. Commit only `.env.example`, never
   `.env` or credentials.
 - Prefer direct, readable code over premature helpers, repositories, services, or base
@@ -81,6 +98,8 @@ curl --fail http://localhost:8000/api/v1/health
 ## Change discipline
 
 - Add or update tests with behavior changes.
+- Database and migration tests must use temporary SQLite files. Never downgrade, delete,
+  or recreate `backend/data/layerlex.db` from an automated test.
 - Keep API contracts typed on both sides.
 - Maintain keyboard accessibility for interactive review controls.
 - A shuffled review round must be a precomputed permutation, never a fresh random choice

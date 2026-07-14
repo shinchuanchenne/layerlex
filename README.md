@@ -4,9 +4,10 @@ LayerLex is a dual-layer vocabulary flashcard application. An outer card teaches
 word; its inner cards teach natural usage through collocations, phrases, patterns, and
 examples.
 
-This repository currently contains the project foundation only: a React health page, a
-FastAPI health API, SQLite file storage, migrations, and development tooling. It
-does not yet contain flashcard CRUD or review features.
+This repository currently contains the project foundation plus the outer and inner card
+database models. It includes a React health page, a FastAPI health API, intentional
+SQLite file storage, Alembic migrations, and development tooling. It does not yet
+contain flashcard CRUD APIs, management pages, or review features.
 
 ## Stack
 
@@ -21,7 +22,7 @@ MVP assumptions.
 ## Repository layout
 
 ```text
-layerlax/
+layerlex/
 ├── frontend/            React single-page application
 ├── backend/             FastAPI application and Alembic migrations
 ├── docs/                Architecture and product notes
@@ -86,6 +87,43 @@ Open <http://localhost:5173>. The dedicated frontend health page is at
 Vite only exposes frontend variables prefixed with `VITE_`. Do not put secrets in any
 `VITE_` variable.
 
+## Database schema
+
+Alembic revision `20260714_0002` adds two tables:
+
+- `outer_cards`: the vocabulary term, optional reading and metadata, meaning, display
+  order, UUID identifier, and UTC timestamps.
+- `inner_cards`: a collocation, phrase, pattern, or example belonging to exactly one
+  outer card, with its own display order, UUID identifier, and UTC timestamps.
+
+Deleting an outer card deletes its inner cards at both the ORM and database levels.
+`outer_cards.sort_order` has a non-unique index, and
+`inner_cards(outer_card_id, sort_order)` has a non-unique composite index.
+
+SQLite does not provide a native UUID column. SQLAlchemy's portable `Uuid` type stores
+UUIDs as `CHAR(32)` in SQLite and exposes them as Python `UUID` objects. This keeps their
+application representation suitable for a possible later PostgreSQL migration.
+
+## SQLite connection behavior
+
+Every application and Alembic connection is configured with:
+
+```sql
+PRAGMA foreign_keys=ON;
+PRAGMA journal_mode=WAL;
+PRAGMA busy_timeout=5000;
+```
+
+- Foreign-key enforcement is required for `ON DELETE CASCADE` because SQLite does not
+  enable foreign keys on every connection by default.
+- WAL allows readers to continue while the single application writer commits.
+- The busy timeout waits up to five seconds for a database lock rather than failing
+  immediately.
+
+WAL produces temporary `-wal` and `-shm` files beside the database. They are runtime
+data and are ignored by Git. The database and all WAL-related files must remain on the
+same local EBS-backed filesystem in production.
+
 ## Validation
 
 Frontend:
@@ -112,6 +150,7 @@ Database and migrations:
 ```bash
 cd backend
 alembic upgrade head
+alembic current
 test -f data/layerlex.db
 ```
 
@@ -132,19 +171,33 @@ cd backend && alembic revision --autogenerate -m "describe change"
 
 ## Single-instance EC2 storage
 
-The initial AWS deployment may continue using SQLite when LayerLex remains a single-user
-application on one EC2 instance. Store the database on an EBS-backed path outside the
-application release directory, for example:
+SQLite is an intentional MVP architecture decision. The initial production deployment
+uses one FastAPI backend deployment on one EC2 instance. Store the database on an
+EBS-backed path outside the application release directory, for example:
 
 ```dotenv
 DATABASE_URL=sqlite:////var/lib/layerlex/layerlex.db
 ```
 
 The EC2 service user must have read and write access to that directory. Start with one
-backend worker, create regular SQLite backups, and take EBS snapshots. Do not store the
-database inside a container layer, temporary directory, or replaceable deployment
-folder.
+backend worker. Do not store the database inside a container writable layer, temporary
+directory, or replaceable deployment folder. If Docker is introduced later, use
+`sqlite:////app/data/layerlex.db` and persist `/app/data` on the EC2 EBS filesystem.
+
+Do not place or share the SQLite database through EFS, NFS, or another shared network
+filesystem. Multiple backend instances and horizontal scaling are outside the MVP.
+
+Use SQLite's online backup operation for production backups, for example while the
+backend remains available:
+
+```bash
+sqlite3 /var/lib/layerlex/layerlex.db ".backup '/var/lib/layerlex/layerlex-backup.db'"
+```
+
+Schedule these backups and EBS snapshots, and periodically verify that a backup can be
+restored. Do not treat a plain copy of only `layerlex.db` during active writes as a safe
+backup, because WAL data may also be active.
 
 Move to PostgreSQL on Amazon RDS before adding multiple backend instances, horizontal
-autoscaling, or substantial concurrent writes. Keeping `DATABASE_URL`, SQLModel, and
-Alembic as the persistence boundaries makes that later migration manageable.
+autoscaling, or many concurrent writers. Keeping `DATABASE_URL`, SQLModel, and Alembic
+as the persistence boundaries makes that later migration manageable.
