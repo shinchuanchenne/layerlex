@@ -15,8 +15,11 @@ cloud deployment, AI-generated vocabulary, spaced repetition, Redux, Firebase,
 Supabase, Next.js, or a component library unless the user explicitly expands scope.
 
 Stages 3 and 4 contain both CRUD APIs. Stages 5A and 5B contain the outer-card and
-inner-card management UI. Review behavior is not implemented yet. Keep future changes
-narrowly aligned with the requested iteration.
+inner-card management UI. Stage 6A contains basic ordered outer-card review, and Stage
+6B adds manually expanded, read-only inner content for the selected outer card. Automatic
+inner display, persistent review preferences, inner review, shuffle, and global review
+shortcuts remain outside the implemented scope. Keep future changes narrowly aligned
+with the requested iteration.
 
 ## Architecture conventions
 
@@ -39,6 +42,23 @@ narrowly aligned with the requested iteration.
 - Keep typed resource API clients and query-key factories under `frontend/src/lib/`.
   List query keys must include server search and pagination parameters. Mutations must
   update or invalidate both affected detail and list caches.
+- Outer review lives at `/review/outer` and `/review/outer/{outerCardId}`. React Router
+  owns the selected card, TanStack Query owns the complete ordered deck, and component
+  state owns presentation state such as flip side and display mode.
+- Build the ordered outer-review deck by fetching all outer-card list pages through the
+  reported `total`; never silently treat one API page as the complete deck. Preserve the
+  backend order and do not reorder or randomize Stage 6A cards in the browser.
+- Changing the selected outer review card must reset flip mode to the front.
+  Simultaneous display mode may persist across card navigation, but changing back to
+  flip mode starts on the front. Do not add global keyboard review shortcuts until a
+  later stage explicitly requests them.
+- Review inner content uses a separate `outer-review` query key scoped by outer-card ID
+  and fetches all inner-card pages through the reported `total`. It is lazy-loaded only
+  after manual expansion and remains separate from the outer card's front/back fields.
+- Expanded/collapsed inner-content state is local UI state keyed by outer-card ID.
+  Changing outer cards must begin collapsed; changing display mode for the same card
+  must not close the panel. Inner loading and errors remain local to the panel and must
+  not replace the outer review interface.
 - Local frontend development uses the Vite `/api` proxy to port 8000. Use
   `VITE_API_BASE_URL` only when an explicit API origin is required; Vite reads the
   repository-root `.env` through `envDir`.

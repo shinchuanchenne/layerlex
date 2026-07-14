@@ -5,10 +5,9 @@ word; its inner cards teach natural usage through collocations, phrases, pattern
 examples.
 
 This repository currently contains the project foundation, outer and inner card database
-models, CRUD APIs for both card layers, and management pages for both card layers. It
-includes
-intentional SQLite file storage, Alembic migrations, and development tooling. It does
-not yet contain review-mode features.
+models, CRUD APIs and management pages for both card layers, and the basic ordered outer
+flashcard review interface. It includes intentional SQLite file storage, Alembic
+migrations, and development tooling.
 
 ## Stack
 
@@ -272,6 +271,53 @@ Run focused frontend management tests with:
 cd frontend
 npm run test -- src/pages/InnerCardsManagement.test.tsx
 npm run test -- src/lib/innerCards.test.ts
+```
+
+## Basic outer-card review
+
+Open <http://localhost:5173/review/outer>, or select **Start outer review** from the
+card-management directory. When the ordered deck is available, the route redirects to
+`/review/outer/{outerCardId}` so the current review card survives refresh, browser
+history, direct navigation, and shared URLs.
+
+The review interface provides:
+
+- a directory containing the complete ordered outer-card deck;
+- front/back flip mode using either the card or an explicit button;
+- a simultaneous mode that displays the prompt and answer together;
+- a manual control for showing or hiding the selected word's inner usage content;
+- ordered Previous and Next controls that stop at the deck boundaries;
+- progress based on the selected card's actual position, such as `3 / 25`;
+- links back to card management and to the selected card's edit page.
+
+The frontend follows the API's stable `sort_order`, `created_at`, and `id` order. It
+fetches every API page needed to reach `total`, rather than treating the 200-card page
+limit as the full deck. Changing cards resets flip mode to the front. Simultaneous mode
+remains active while navigating, and returning to flip mode starts on the front.
+
+Select **Show inner content** to lazy-load every inner card belonging to the current
+outer card. The separate read-only usage panel preserves the backend's stable order and
+shows each expression, meaning, and available reading, usage note, and notes. Closing
+the panel hides the content; reopening it may reuse fresh TanStack Query cache data.
+Changing to another outer card always starts with the panel collapsed, while changing
+between Flip mode and Show both on the same card leaves the panel open.
+
+Loading and API errors stay inside the usage panel, so the outer card and its navigation
+remain usable. The error state can retry only that outer card's inner content. An empty
+panel links to `/cards/{outerCardId}` to add or manage inner cards; review mode itself
+does not contain create, edit, or delete actions.
+
+Stage 6B still requires manual expansion. Automatic display, persistent preferences,
+`localStorage`, separate inner-card review, inner-card flipping or navigation, shuffle,
+global keyboard shortcuts, ratings, spaced repetition, and review history are not
+implemented yet.
+
+Run the focused review tests with:
+
+```bash
+cd frontend
+npm run test -- src/lib/outerReview.test.ts
+npm run test -- src/pages/OuterReviewPage.test.tsx
 ```
 
 ## Validation
