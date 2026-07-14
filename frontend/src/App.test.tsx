@@ -33,6 +33,9 @@ describe("LayerLex application", () => {
     expect(
       screen.getByRole("link", { name: "Check application health" }),
     ).toHaveAttribute("href", "/health");
+    expect(
+      screen.getByRole("link", { name: "Manage outer cards" }),
+    ).toHaveAttribute("href", "/cards");
   });
 
   it("shows a successful API health result", async () => {
@@ -46,8 +49,8 @@ describe("LayerLex application", () => {
     renderApp("/health");
 
     expect(await screen.findByText("Connected")).toBeInTheDocument();
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      "http://localhost:8000/api/v1/health",
-    );
+    expect(globalThis.fetch).toHaveBeenCalledWith("/api/v1/health", {
+      headers: {},
+    });
   });
 });

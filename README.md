@@ -5,9 +5,9 @@ word; its inner cards teach natural usage through collocations, phrases, pattern
 examples.
 
 This repository currently contains the project foundation, outer and inner card database
-models, and CRUD APIs for both card layers. It includes a React health page, intentional
-SQLite file storage, Alembic migrations, and development tooling. It does not yet
-contain management pages or review features.
+models, CRUD APIs for both card layers, and an outer-card management page. It includes
+intentional SQLite file storage, Alembic migrations, and development tooling. It does
+not yet contain inner-card management or review features.
 
 ## Stack
 
@@ -82,10 +82,11 @@ Open <http://localhost:5173>. The dedicated frontend health page is at
 | `CORS_ORIGINS` | Comma-separated browser origins | `http://localhost:5173` |
 | `BACKEND_PORT` | Documented backend port | `8000` |
 | `FRONTEND_PORT` | Documented frontend port | `5173` |
-| `VITE_API_URL` | API base URL compiled into the frontend | `http://localhost:8000` |
+| `VITE_API_BASE_URL` | Optional API origin compiled into the frontend; blank uses the development proxy | blank |
 
 Vite only exposes frontend variables prefixed with `VITE_`. Do not put secrets in any
-`VITE_` variable.
+`VITE_` variable. Vite reads the repository-root `.env` because this monorepo sets
+`envDir` explicitly.
 
 ## Database schema
 
@@ -224,6 +225,26 @@ update API. Inner-card lists include only the selected outer card and use stable
 ordering by `sort_order`, `created_at`, then `id`. Deleting one inner card preserves
 its parent and siblings; deleting an outer card still cascades to all of its inner
 cards.
+
+## Outer-card management page
+
+Start the backend on port 8000 and the frontend on port 5173, then open
+<http://localhost:5173/cards>. The selected outer card is stored in the URL as
+`/cards/{outerCardId}`, so refreshing or sharing the address preserves that selection.
+
+The responsive management page provides:
+
+- a searchable, paginated outer-card directory;
+- selected-card details without inner-card content;
+- create and edit forms with client and FastAPI validation feedback;
+- confirmed deletion with the existing backend cascade behavior;
+- loading, error, retry, empty-database, and empty-search states.
+
+During local development, browser requests to `/api` are proxied by Vite to
+`http://localhost:8000`. Leave `VITE_API_BASE_URL` blank to use this proxy. Set it to
+an explicit origin only when the frontend and API are served from different origins.
+Changing a Vite environment variable requires restarting the frontend development
+server.
 
 ## Validation
 

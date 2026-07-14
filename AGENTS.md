@@ -14,9 +14,9 @@ complete-queue shuffled review, and progress display. Do not add authentication,
 cloud deployment, AI-generated vocabulary, spaced repetition, Redux, Firebase,
 Supabase, Next.js, or a component library unless the user explicitly expands scope.
 
-Stages 3 and 4 contain the outer-card and inner-card CRUD APIs. Management UI and review
-behavior are not implemented yet. Keep future changes narrowly aligned with the
-requested iteration.
+Stages 3 and 4 contain both CRUD APIs. Stage 5A contains the outer-card management UI.
+Inner-card management and review behavior are not implemented yet. Keep future changes
+narrowly aligned with the requested iteration.
 
 ## Architecture conventions
 
@@ -26,6 +26,15 @@ requested iteration.
   local UI state; do not introduce a global state library without a demonstrated need.
 - Keep route-level UI in `frontend/src/pages/`, shared UI in `frontend/src/components/`,
   and API access in `frontend/src/lib/`.
+- Outer-card management lives at `/cards` and `/cards/{outerCardId}`. Keep the selected
+  outer card in the URL; use React Router for navigation and TanStack Query for server
+  state rather than duplicating either in global state.
+- Keep typed resource API clients and query-key factories under `frontend/src/lib/`.
+  List query keys must include server search and pagination parameters. Mutations must
+  update or invalidate both affected detail and list caches.
+- Local frontend development uses the Vite `/api` proxy to port 8000. Use
+  `VITE_API_BASE_URL` only when an explicit API origin is required; Vite reads the
+  repository-root `.env` through `envDir`.
 - Expose backend application routes under `/api/v1`. Keep `/health` unversioned for
   infrastructure liveness checks.
 - Outer-card CRUD routes live at `/api/v1/outer-cards`. Keep API request/response schemas
@@ -113,6 +122,8 @@ curl --fail http://localhost:8000/api/v1/health
 - Database and migration tests must use temporary SQLite files. Never downgrade, delete,
   or recreate `backend/data/layerlex.db` from an automated test.
 - Keep API contracts typed on both sides.
+- Frontend tests must mock the API client or network and must never depend on the real
+  backend process or SQLite database.
 - Maintain keyboard accessibility for interactive review controls.
 - A shuffled review round must be a precomputed permutation, never a fresh random choice
   on each navigation action.
