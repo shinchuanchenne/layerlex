@@ -11,6 +11,10 @@ export function App() {
       <Route path="/health" element={<HealthPage />} />
       <Route path="/cards" element={<OuterCardsPage />} />
       <Route path="/cards/:outerCardId" element={<OuterCardsPage />} />
+      <Route
+        path="/cards/:outerCardId/inner/:innerCardId"
+        element={<OuterCardsPage />}
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

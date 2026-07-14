@@ -14,8 +14,8 @@ complete-queue shuffled review, and progress display. Do not add authentication,
 cloud deployment, AI-generated vocabulary, spaced repetition, Redux, Firebase,
 Supabase, Next.js, or a component library unless the user explicitly expands scope.
 
-Stages 3 and 4 contain both CRUD APIs. Stage 5A contains the outer-card management UI.
-Inner-card management and review behavior are not implemented yet. Keep future changes
+Stages 3 and 4 contain both CRUD APIs. Stages 5A and 5B contain the outer-card and
+inner-card management UI. Review behavior is not implemented yet. Keep future changes
 narrowly aligned with the requested iteration.
 
 ## Architecture conventions
@@ -29,6 +29,13 @@ narrowly aligned with the requested iteration.
 - Outer-card management lives at `/cards` and `/cards/{outerCardId}`. Keep the selected
   outer card in the URL; use React Router for navigation and TanStack Query for server
   state rather than duplicating either in global state.
+- Inner-card selection lives at `/cards/{outerCardId}/inner/{innerCardId}`. Inner lists
+  must be scoped by outer-card ID in both the request and query key. Never request inner
+  cards without a selected outer card, and never display an inner detail whose returned
+  `outer_card_id` differs from the route parent.
+- Key parent-scoped inner management state by outer-card ID so changing parents resets
+  inner search, pagination, forms, and selection. Deleting an outer card must remove its
+  inner list caches and any loaded inner details belonging to it.
 - Keep typed resource API clients and query-key factories under `frontend/src/lib/`.
   List query keys must include server search and pagination parameters. Mutations must
   update or invalidate both affected detail and list caches.

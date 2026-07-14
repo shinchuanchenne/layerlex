@@ -28,6 +28,23 @@ vi.mock("../lib/outerCards", async (importOriginal) => {
   };
 });
 
+vi.mock("../lib/innerCards", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/innerCards")>();
+  return {
+    ...actual,
+    listInnerCards: vi.fn(async () => ({
+      items: [],
+      total: 0,
+      offset: 0,
+      limit: 10,
+    })),
+    retrieveInnerCard: vi.fn(),
+    createInnerCard: vi.fn(),
+    updateInnerCard: vi.fn(),
+    deleteInnerCard: vi.fn(),
+  };
+});
+
 const firstCard: OuterCard = {
   id: "11111111-1111-4111-8111-111111111111",
   term: "経験",

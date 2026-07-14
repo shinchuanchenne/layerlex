@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { OuterCard } from "../lib/outerCards";
 
 interface OuterCardDetailProps {
@@ -7,6 +9,7 @@ interface OuterCardDetailProps {
   isNotFound: boolean;
   deleteError?: string;
   isDeleting: boolean;
+  children?: ReactNode;
   onRetry: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -30,6 +33,7 @@ export function OuterCardDetail({
   isNotFound,
   deleteError,
   isDeleting,
+  children,
   onRetry,
   onEdit,
   onDelete,
@@ -92,7 +96,7 @@ export function OuterCardDetail({
   ] as const;
 
   return (
-    <article className="m-auto w-full max-w-4xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-10">
+    <article className="m-auto w-full max-w-7xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-10">
       <header className="flex flex-col justify-between gap-6 border-b border-slate-200 pb-8 sm:flex-row sm:items-start">
         <div>
           <p className="text-sm font-bold tracking-[0.2em] text-cyan-700 uppercase">
@@ -164,6 +168,7 @@ export function OuterCardDetail({
           </dd>
         </div>
       </dl>
+      {children}
     </article>
   );
 }

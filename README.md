@@ -5,9 +5,10 @@ word; its inner cards teach natural usage through collocations, phrases, pattern
 examples.
 
 This repository currently contains the project foundation, outer and inner card database
-models, CRUD APIs for both card layers, and an outer-card management page. It includes
+models, CRUD APIs for both card layers, and management pages for both card layers. It
+includes
 intentional SQLite file storage, Alembic migrations, and development tooling. It does
-not yet contain inner-card management or review features.
+not yet contain review-mode features.
 
 ## Stack
 
@@ -235,7 +236,7 @@ Start the backend on port 8000 and the frontend on port 5173, then open
 The responsive management page provides:
 
 - a searchable, paginated outer-card directory;
-- selected-card details without inner-card content;
+- selected outer-card details with a nested inner-card management section;
 - create and edit forms with client and FastAPI validation feedback;
 - confirmed deletion with the existing backend cascade behavior;
 - loading, error, retry, empty-database, and empty-search states.
@@ -245,6 +246,33 @@ During local development, browser requests to `/api` are proxied by Vite to
 an explicit origin only when the frontend and API are served from different origins.
 Changing a Vite environment variable requires restarting the frontend development
 server.
+
+## Inner-card management
+
+Select an outer card at `/cards/{outerCardId}` to load only that card's inner-card
+directory. Selecting an inner card changes the route to
+`/cards/{outerCardId}/inner/{innerCardId}`. Both IDs are therefore restored by direct
+navigation, refresh, browser history, or a shared URL.
+
+The inner-card section provides server-side search and pagination, full create, edit,
+retrieve, and delete management, parent mismatch protection, and loading, empty,
+error, and retry states. Creating and editing never accepts an editable parent ID;
+the parent comes from the selected outer-card route. Deleting an inner card preserves
+its outer card and sibling inner cards, while deleting an outer card clears its
+associated frontend inner-card caches.
+
+Stage 5B is a management interface only. It does not implement card flipping, review
+navigation, review queues, shuffle, keyboard review controls, or automatic inner
+content preferences.
+
+Use the same local startup commands above, then open <http://localhost:5173/cards>.
+Run focused frontend management tests with:
+
+```bash
+cd frontend
+npm run test -- src/pages/InnerCardsManagement.test.tsx
+npm run test -- src/lib/innerCards.test.ts
+```
 
 ## Validation
 

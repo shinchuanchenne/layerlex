@@ -10,7 +10,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { OuterCardDetail } from "../components/OuterCardDetail";
 import { OuterCardDirectory } from "../components/OuterCardDirectory";
 import { OuterCardForm } from "../components/OuterCardForm";
+import { InnerCardsManager } from "../components/InnerCardsManager";
 import { ApiError, getApiErrorMessage } from "../lib/api";
+import { innerCardKeys, type InnerCard } from "../lib/innerCards";
 import {
   createOuterCard,
   deleteOuterCard,
@@ -28,7 +30,10 @@ import { useDebouncedValue } from "../lib/useDebouncedValue";
 const PAGE_SIZE = 10;
 
 export function OuterCardsPage() {
-  const { outerCardId } = useParams<{ outerCardId: string }>();
+  const { outerCardId, innerCardId } = useParams<{
+    outerCardId: string;
+    innerCardId: string;
+  }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchInput, setSearchInput] = useState("");
@@ -124,6 +129,15 @@ export function OuterCardsPage() {
         },
       );
       void queryClient.invalidateQueries({ queryKey: outerCardKeys.lists() });
+      queryClient.removeQueries({
+        queryKey: innerCardKeys.parentLists(deletedCardId),
+      });
+      queryClient.removeQueries({
+        queryKey: innerCardKeys.details(),
+        predicate: (query) =>
+          (query.state.data as InnerCard | undefined)?.outer_card_id ===
+          deletedCardId,
+      });
       navigate("/cards");
     },
   });
@@ -234,7 +248,15 @@ export function OuterCardsPage() {
               setFormMode("edit");
             }}
             onDelete={handleDelete}
-          />
+          >
+            {outerCardId && detailQuery.data ? (
+              <InnerCardsManager
+                key={outerCardId}
+                outerCardId={outerCardId}
+                selectedInnerCardId={innerCardId}
+              />
+            ) : null}
+          </OuterCardDetail>
         )}
       </section>
     </main>
