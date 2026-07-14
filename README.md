@@ -6,8 +6,8 @@ examples.
 
 This repository currently contains the project foundation, outer and inner card database
 models, CRUD APIs and management pages for both card layers, and the basic ordered outer
-flashcard review interface. It includes intentional SQLite file storage, Alembic
-migrations, and development tooling.
+and inner flashcard review interfaces. It includes intentional SQLite file storage,
+Alembic migrations, and development tooling.
 
 ## Stack
 
@@ -229,8 +229,8 @@ inner cards.
 
 ### Global inner-card collection
 
-`GET /api/v1/inner-cards` is the ordered data source for the future independent
-inner-card review mode. Unlike the parent-scoped endpoint, it returns inner cards across
+`GET /api/v1/inner-cards` is the ordered data source for the independent inner-card
+review mode. Unlike the parent-scoped endpoint, it returns inner cards across
 all outer cards without requiring an outer-card ID.
 
 ```bash
@@ -348,8 +348,8 @@ does not contain create, edit, or delete actions. Inner-card create, update, and
 operations invalidate the affected parent’s aggregated review-content query, while
 deleting an outer card removes only that parent’s review-content cache.
 
-Separate inner-card review, inner-card flipping or navigation, shuffle, global keyboard
-shortcuts, ratings, spaced repetition, and review history are not implemented yet.
+Shuffle, global keyboard shortcuts, ratings, spaced repetition, and review history are
+not implemented yet.
 
 Run the focused review tests with:
 
@@ -357,6 +357,55 @@ Run the focused review tests with:
 cd frontend
 npm run test -- src/lib/outerReview.test.ts
 npm run test -- src/pages/OuterReviewPage.test.tsx
+```
+
+## Independent inner-card review
+
+Open <http://localhost:5173/review/inner>, or select **Start inner review** from card
+management or **Inner review** from the outer-review directory. After the complete deck
+loads, the route redirects to `/review/inner/{innerCardId}`. The selected inner card is
+therefore restored by refresh, browser history, direct navigation, or a shared URL.
+
+The inner-review interface provides:
+
+- an ordered directory containing every inner card exactly once;
+- front/back flip mode through the card or an explicit Show answer button;
+- Show both mode, which remains active while moving between cards;
+- ordered Previous and Next controls with no wrapping;
+- progress based on the current card's position in the complete deck;
+- the parent outer-card term and optional reading as secondary context; and
+- local loading, retry, empty-deck, unknown-card, and missing-parent states.
+
+The frontend loads `GET /api/v1/inner-cards` in pages of 200 until the reported `total`
+is reached. It preserves the backend order without sorting again. An empty page before
+`total` or a duplicate card ID fails clearly instead of silently truncating or repeating
+the deck.
+
+Parent context does not change inner-review order. The existing complete outer-review
+deck query is loaded once and converted to an in-memory map keyed by outer-card ID, so
+the interface never makes one parent request per inner card. Parent-context loading or
+failure does not block the inner deck; an unavailable parent receives a safe fallback.
+
+The ordered inner-review deck uses its own TanStack Query key, separate from management
+and outer-review content. Inner-card create, update, and delete operations invalidate
+this deck. Deleting an outer card removes it because database cascade deletion changes
+the global inner-card collection. Existing parent-scoped outer-review invalidation
+remains unchanged.
+
+Changing cards resets flip mode to the front. Show both persists across card changes,
+and returning to Flip mode starts on the front. These controls are independent of the
+outer-review automatic-inner-content browser preference. Inner review remains read-only:
+editing is available through the management link rather than inside the review card.
+
+Shuffle, keyboard review shortcuts, ratings, spaced repetition, and review history are
+explicitly outside Stage 7B.
+
+Run the focused inner-review tests with:
+
+```bash
+cd frontend
+npm run test -- src/lib/innerReview.test.ts
+npm run test -- src/pages/InnerReviewPage.test.tsx
 ```
 
 ## Validation

@@ -16,6 +16,7 @@ import {
   type InnerCard,
   type InnerCardListResponse,
 } from "../lib/innerCards";
+import { innerReviewKeys } from "../lib/innerReviewKeys";
 import {
   createOuterCard,
   deleteOuterCard,
@@ -643,6 +644,10 @@ describe("outer-review inner-content cache coherence", () => {
     queryClient.setQueryData(outerReviewKeys.innerContent(secondOuter.id), [
       foreignInner,
     ]);
+    queryClient.setQueryData(innerReviewKeys.orderedDeck(), [
+      firstInner,
+      foreignInner,
+    ]);
   }
 
   function expectOnlyFirstParentInvalidated(queryClient: QueryClient) {
@@ -654,6 +659,9 @@ describe("outer-review inner-content cache coherence", () => {
       queryClient.getQueryState(outerReviewKeys.innerContent(secondOuter.id))
         ?.isInvalidated,
     ).toBe(false);
+    expect(
+      queryClient.getQueryState(innerReviewKeys.orderedDeck())?.isInvalidated,
+    ).toBe(true);
   }
 
   it("invalidates only the created inner card's parent review content", async () => {
@@ -724,5 +732,8 @@ describe("outer-review inner-content cache coherence", () => {
     expect(
       queryClient.getQueryData(outerReviewKeys.innerContent(secondOuter.id)),
     ).toEqual([foreignInner]);
+    expect(
+      queryClient.getQueryData(innerReviewKeys.orderedDeck()),
+    ).toBeUndefined();
   });
 });

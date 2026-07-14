@@ -4,6 +4,7 @@ import { ApiError, getApiErrorMessage } from "./api";
 import {
   createInnerCard,
   deleteInnerCard,
+  listAllInnerCards,
   listInnerCards,
   retrieveInnerCard,
   updateInnerCard,
@@ -59,6 +60,24 @@ describe("inner-card API client", () => {
       "/api/v1/outer-cards/" +
         outerCardId +
         "/inner-cards?offset=10&limit=20&search=%E7%B5%8C%E9%A8%93",
+      { headers: {} },
+    );
+  });
+
+  it("uses the global collection path for the independent review source", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ items: [card], total: 1, offset: 20, limit: 50 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+
+    await listAllInnerCards({ search: "搭配", offset: 20, limit: 50 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/inner-cards?offset=20&limit=50&search=%E6%90%AD%E9%85%8D",
       { headers: {} },
     );
   });

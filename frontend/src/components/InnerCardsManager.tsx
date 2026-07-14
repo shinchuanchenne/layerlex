@@ -20,6 +20,7 @@ import {
   type InnerCardListResponse,
   type InnerCardUpdateInput,
 } from "../lib/innerCards";
+import { innerReviewKeys } from "../lib/innerReviewKeys";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
 import { outerReviewKeys } from "../lib/outerReviewKeys";
 import { InnerCardDetail } from "./InnerCardDetail";
@@ -104,6 +105,9 @@ export function InnerCardsManager({
       void queryClient.invalidateQueries({
         queryKey: outerReviewKeys.innerContent(outerCardId),
       });
+      void queryClient.invalidateQueries({
+        queryKey: innerReviewKeys.orderedDeck(),
+      });
       setFormState(null);
       navigate("/cards/" + outerCardId + "/inner/" + createdCard.id);
     },
@@ -128,6 +132,9 @@ export function InnerCardsManager({
       });
       void queryClient.invalidateQueries({
         queryKey: outerReviewKeys.innerContent(updatedCard.outer_card_id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: innerReviewKeys.orderedDeck(),
       });
       setFormState(null);
     },
@@ -161,6 +168,9 @@ export function InnerCardsManager({
       });
       void queryClient.invalidateQueries({
         queryKey: outerReviewKeys.innerContent(outerCardId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: innerReviewKeys.orderedDeck(),
       });
       setFormState(null);
       navigate("/cards/" + outerCardId);

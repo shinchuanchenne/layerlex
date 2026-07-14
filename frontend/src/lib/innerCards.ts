@@ -68,6 +68,21 @@ export function listInnerCards(
   );
 }
 
+export function listAllInnerCards(
+  params: InnerCardListParams,
+): Promise<InnerCardListResponse> {
+  const searchParams = new URLSearchParams({
+    offset: String(params.offset),
+    limit: String(params.limit),
+  });
+  if (params.search) {
+    searchParams.set("search", params.search);
+  }
+  return requestApi<InnerCardListResponse>(
+    "/api/v1/inner-cards?" + searchParams.toString(),
+  );
+}
+
 export function retrieveInnerCard(innerCardId: string): Promise<InnerCard> {
   return requestApi<InnerCard>("/api/v1/inner-cards/" + innerCardId);
 }

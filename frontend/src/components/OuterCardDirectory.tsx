@@ -61,12 +61,20 @@ export function OuterCardDirectory({
             Add card
           </button>
         </div>
-        <Link
-          to="/review/outer"
-          className="mt-4 inline-flex text-sm font-semibold text-cyan-800 underline-offset-4 hover:underline focus:ring-2 focus:ring-cyan-600 focus:outline-none"
-        >
-          Start outer review
-        </Link>
+        <nav aria-label="Review modes" className="mt-4 flex flex-wrap gap-4">
+          <Link
+            to="/review/outer"
+            className="text-sm font-semibold text-cyan-800 underline-offset-4 hover:underline focus:ring-2 focus:ring-cyan-600 focus:outline-none"
+          >
+            Start outer review
+          </Link>
+          <Link
+            to="/review/inner"
+            className="text-sm font-semibold text-violet-800 underline-offset-4 hover:underline focus:ring-2 focus:ring-violet-600 focus:outline-none"
+          >
+            Start inner review
+          </Link>
+        </nav>
 
         <label
           htmlFor="outer-card-search"

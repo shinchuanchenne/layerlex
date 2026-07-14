@@ -17,9 +17,10 @@ Supabase, Next.js, or a component library unless the user explicitly expands sco
 Stages 3 and 4 contain both CRUD APIs. Stages 5A and 5B contain the outer-card and
 inner-card management UI. Stage 6A contains basic ordered outer-card review, Stage 6B
 adds read-only inner content, and Stage 6C adds the persistent automatic-display
-preference. Stage 7A adds the global ordered inner-card collection API. Inner review UI,
-shuffle, and global review shortcuts remain outside the implemented scope. Keep future
-changes narrowly aligned with the requested iteration.
+preference. Stage 7A adds the global ordered inner-card collection API, and Stage 7B
+adds independent ordered inner-card review. Shuffle and global review
+shortcuts remain outside the implemented scope. Keep future changes narrowly aligned
+with the requested iteration.
 
 ## Architecture conventions
 
@@ -67,6 +68,25 @@ changes narrowly aligned with the requested iteration.
 - Inner-card create, update, and delete mutations must invalidate the affected
   `outerReviewKeys.innerContent(outerCardId)` query without invalidating unrelated
   parents. Deleting an outer card must remove its corresponding review-content query.
+- Independent inner review lives at `/review/inner` and
+  `/review/inner/{innerCardId}`. React Router owns the selected inner card, TanStack
+  Query owns the complete ordered deck, and component state owns flip side and display
+  mode.
+- Build the independent inner-review deck from every page of the global
+  `GET /api/v1/inner-cards` collection through its reported `total`. Preserve backend
+  order, reject duplicate IDs, and fail if pagination returns an empty page before the
+  total is reached. Do not sort the deck again in the browser.
+- Resolve inner-review parent context by reusing the complete outer-review deck and an
+  in-memory outer-card ID map. Never request one outer card per inner card. Missing or
+  failed parent context must not block the inner deck and must use a safe fallback.
+- Keep the ordered inner-review deck under a dedicated `inner-review` query key.
+  Inner-card create, update, and delete mutations invalidate it; deleting an outer card
+  removes it because cascade deletion changes the global collection. Preserve existing
+  parent-scoped outer-review cache behavior.
+- Changing the selected inner review card resets flip mode to the front. Simultaneous
+  display may persist across navigation, but switching back to flip mode starts on the
+  front. Inner-review display state is independent of the outer-review automatic-inner
+  preference.
 - Local frontend development uses the Vite `/api` proxy to port 8000. Use
   `VITE_API_BASE_URL` only when an explicit API origin is required; Vite reads the
   repository-root `.env` through `envDir`.

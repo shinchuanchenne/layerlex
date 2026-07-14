@@ -13,6 +13,7 @@ import { OuterCardForm } from "../components/OuterCardForm";
 import { InnerCardsManager } from "../components/InnerCardsManager";
 import { ApiError, getApiErrorMessage } from "../lib/api";
 import { innerCardKeys, type InnerCard } from "../lib/innerCards";
+import { innerReviewKeys } from "../lib/innerReviewKeys";
 import {
   createOuterCard,
   deleteOuterCard,
@@ -141,6 +142,9 @@ export function OuterCardsPage() {
       });
       queryClient.removeQueries({
         queryKey: outerReviewKeys.innerContent(deletedCardId),
+      });
+      queryClient.removeQueries({
+        queryKey: innerReviewKeys.orderedDeck(),
       });
       navigate("/cards");
     },
