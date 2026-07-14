@@ -17,8 +17,9 @@ Supabase, Next.js, or a component library unless the user explicitly expands sco
 Stages 3 and 4 contain both CRUD APIs. Stages 5A and 5B contain the outer-card and
 inner-card management UI. Stage 6A contains basic ordered outer-card review, Stage 6B
 adds read-only inner content, and Stage 6C adds the persistent automatic-display
-preference. Inner review, shuffle, and global review shortcuts remain outside the
-implemented scope. Keep future changes narrowly aligned with the requested iteration.
+preference. Stage 7A adds the global ordered inner-card collection API. Inner review UI,
+shuffle, and global review shortcuts remain outside the implemented scope. Keep future
+changes narrowly aligned with the requested iteration.
 
 ## Architecture conventions
 
@@ -81,8 +82,12 @@ implemented scope. Keep future changes narrowly aligned with the requested itera
 - Normalize API strings at the schema boundary: trim all strings, reject blank required
   values, and convert blank optional strings to `null`.
 - Outer-card lists use stable ordering by `sort_order`, `created_at`, then `id`.
-- Inner-card lists are always scoped to one existing outer card and use stable ordering
-  by `sort_order`, `created_at`, then `id`.
+- Parent-scoped inner-card lists use stable ordering by inner-card `sort_order`,
+  `created_at`, then `id`.
+- The global `GET /api/v1/inner-cards` collection groups and orders by outer-card
+  `sort_order`, `created_at`, and `id`, then inner-card `sort_order`, `created_at`, and
+  `id`. Apply search before count, and apply this complete order in SQL before
+  pagination; do not sort a paginated result in Python.
 - Organize FastAPI endpoints by resource under `backend/app/api/routes/`.
 - Put settings and database wiring under `backend/app/core/`.
 - Use SQLModel models for persistence and Pydantic response/request models at API

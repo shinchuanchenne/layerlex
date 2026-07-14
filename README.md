@@ -181,6 +181,7 @@ and delete a known inner card directly:
 
 | Method | Path | Result |
 | --- | --- | --- |
+| `GET` | `/api/v1/inner-cards` | List, search, and paginate all inner cards globally |
 | `POST` | `/api/v1/outer-cards/{outer_id}/inner-cards` | Create an inner card and return HTTP 201 |
 | `GET` | `/api/v1/outer-cards/{outer_id}/inner-cards` | List, search, and paginate one outer card's inner cards |
 | `GET` | `/api/v1/inner-cards/{inner_id}` | Retrieve one inner card |
@@ -221,10 +222,36 @@ curl --request DELETE http://localhost:8000/api/v1/inner-cards/{inner_id}
 ```
 
 The outer-card relationship is set by the create URL and cannot be changed through the
-update API. Inner-card lists include only the selected outer card and use stable
-ordering by `sort_order`, `created_at`, then `id`. Deleting one inner card preserves
-its parent and siblings; deleting an outer card still cascades to all of its inner
-cards.
+update API. Parent-scoped inner-card lists include only the selected outer card and use
+stable ordering by `sort_order`, `created_at`, then `id`. Deleting one inner card
+preserves its parent and siblings; deleting an outer card still cascades to all of its
+inner cards.
+
+### Global inner-card collection
+
+`GET /api/v1/inner-cards` is the ordered data source for the future independent
+inner-card review mode. Unlike the parent-scoped endpoint, it returns inner cards across
+all outer cards without requiring an outer-card ID.
+
+```bash
+curl 'http://localhost:8000/api/v1/inner-cards'
+curl 'http://localhost:8000/api/v1/inner-cards?offset=50&limit=50'
+curl 'http://localhost:8000/api/v1/inner-cards?search=経験'
+```
+
+Query parameters are `offset` (default `0`, minimum `0`), `limit` (default `50`, range
+`1`–`200`), and optional `search`. Search trims surrounding whitespace and matches
+`expression`, `reading`, `meaning`, and `usage_note` before count and pagination.
+
+The global collection is grouped and deterministically ordered by:
+
+1. outer-card `sort_order`, `created_at`, and `id`;
+2. inner-card `sort_order`, `created_at`, and `id` within each parent.
+
+Filtering, ordering, counting, and pagination are performed by the database. Outer cards
+without inner cards do not create placeholder items, and each result continues to carry
+its own `outer_card_id`. The existing parent-scoped endpoint remains the appropriate API
+when only one outer card's usage content is needed.
 
 ## Outer-card management page
 

@@ -105,6 +105,61 @@ def list_inner_cards(
 
 
 @router.get(
+    "/inner-cards",
+    response_model=InnerCardListResponse,
+    summary="List all inner flashcards",
+    description=(
+        "Return a stable, paginated collection of inner cards across all outer cards. "
+        "Results are grouped by outer-card order and then ordered within each parent."
+    ),
+)
+def list_all_inner_cards(
+    session: SessionDependency,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    search: str | None = None,
+) -> InnerCardListResponse:
+    search_value = search.strip() if search is not None else ""
+
+    count_statement = (
+        select(func.count())
+        .select_from(InnerCard)
+        .join(OuterCard, InnerCard.outer_card_id == OuterCard.id)
+    )
+    list_statement = select(InnerCard).join(
+        OuterCard,
+        InnerCard.outer_card_id == OuterCard.id,
+    )
+
+    if search_value:
+        pattern = f"%{search_value}%"
+        search_filter = or_(
+            InnerCard.expression.ilike(pattern),
+            InnerCard.reading.ilike(pattern),
+            InnerCard.meaning.ilike(pattern),
+            InnerCard.usage_note.ilike(pattern),
+        )
+        count_statement = count_statement.where(search_filter)
+        list_statement = list_statement.where(search_filter)
+
+    total = session.exec(count_statement).one()
+    items = session.exec(
+        list_statement.order_by(
+            OuterCard.sort_order.asc(),
+            OuterCard.created_at.asc(),
+            OuterCard.id.asc(),
+            InnerCard.sort_order.asc(),
+            InnerCard.created_at.asc(),
+            InnerCard.id.asc(),
+        )
+        .offset(offset)
+        .limit(limit)
+    ).all()
+
+    return InnerCardListResponse(items=items, total=total, offset=offset, limit=limit)
+
+
+@router.get(
     "/inner-cards/{inner_card_id}",
     response_model=InnerCardRead,
     responses={status.HTTP_404_NOT_FOUND: {"description": INNER_CARD_NOT_FOUND}},
