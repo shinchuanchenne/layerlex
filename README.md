@@ -299,18 +299,30 @@ Select **Show inner content** to lazy-load every inner card belonging to the cur
 outer card. The separate read-only usage panel preserves the backend's stable order and
 shows each expression, meaning, and available reading, usage note, and notes. Closing
 the panel hides the content; reopening it may reuse fresh TanStack Query cache data.
-Changing to another outer card always starts with the panel collapsed, while changing
-between Flip mode and Show both on the same card leaves the panel open.
+
+The **Automatically show inner content** switch is off by default. When enabled, it
+immediately opens the current panel and every newly selected outer card begins expanded.
+The choice survives a page reload in browser storage under:
+
+```text
+layerlex.outerReview.autoShowInnerContent.v1
+```
+
+Only the strings `true` and `false` are written. Missing, invalid, or inaccessible
+storage safely defaults to off. The manual Show/Hide control remains available: hiding
+one card does not disable automatic mode, and the next selected card still opens.
+Manually expanding while automatic mode is off does not enable the preference. The
+automatic switch is independent from Flip mode and Show both.
 
 Loading and API errors stay inside the usage panel, so the outer card and its navigation
 remain usable. The error state can retry only that outer card's inner content. An empty
 panel links to `/cards/{outerCardId}` to add or manage inner cards; review mode itself
-does not contain create, edit, or delete actions.
+does not contain create, edit, or delete actions. Inner-card create, update, and delete
+operations invalidate the affected parent’s aggregated review-content query, while
+deleting an outer card removes only that parent’s review-content cache.
 
-Stage 6B still requires manual expansion. Automatic display, persistent preferences,
-`localStorage`, separate inner-card review, inner-card flipping or navigation, shuffle,
-global keyboard shortcuts, ratings, spaced repetition, and review history are not
-implemented yet.
+Separate inner-card review, inner-card flipping or navigation, shuffle, global keyboard
+shortcuts, ratings, spaced repetition, and review history are not implemented yet.
 
 Run the focused review tests with:
 

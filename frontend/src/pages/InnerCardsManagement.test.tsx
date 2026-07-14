@@ -24,6 +24,7 @@ import {
   updateOuterCard,
   type OuterCard,
 } from "../lib/outerCards";
+import { outerReviewKeys } from "../lib/outerReviewKeys";
 
 vi.mock("../lib/outerCards", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/outerCards")>();
@@ -631,5 +632,97 @@ describe("inner-card deletion and outer regression", () => {
       queryClient.getQueryData(innerCardKeys.detail(firstInner.id)),
     ).toBeUndefined();
     expect(deleteOuterCard).toHaveBeenCalledWith(firstOuter.id);
+  });
+});
+
+describe("outer-review inner-content cache coherence", () => {
+  function seedReviewCaches(queryClient: QueryClient) {
+    queryClient.setQueryData(outerReviewKeys.innerContent(firstOuter.id), [
+      firstInner,
+    ]);
+    queryClient.setQueryData(outerReviewKeys.innerContent(secondOuter.id), [
+      foreignInner,
+    ]);
+  }
+
+  function expectOnlyFirstParentInvalidated(queryClient: QueryClient) {
+    expect(
+      queryClient.getQueryState(outerReviewKeys.innerContent(firstOuter.id))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(outerReviewKeys.innerContent(secondOuter.id))
+        ?.isInvalidated,
+    ).toBe(false);
+  }
+
+  it("invalidates only the created inner card's parent review content", async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderManagement();
+    seedReviewCaches(queryClient);
+    await screen.findByText("Inner-card management");
+
+    await user.click(screen.getByRole("button", { name: "Add inner card" }));
+    await user.type(screen.getByLabelText(/Expression/), "新しい表現");
+    await user.type(screen.getByLabelText(/Meaning/), "new expression");
+    await user.click(screen.getByRole("button", { name: "Create inner card" }));
+
+    await waitFor(() => expect(createInnerCard).toHaveBeenCalled());
+    expectOnlyFirstParentInvalidated(queryClient);
+  });
+
+  it("invalidates the updated card's returned parent review content", async () => {
+    const user = userEvent.setup();
+    const updated = { ...firstInner, notes: "Updated note" };
+    vi.mocked(updateInnerCard).mockResolvedValue(updated);
+    const { queryClient } = renderManagement(
+      "/cards/" + firstOuter.id + "/inner/" + firstInner.id,
+    );
+    seedReviewCaches(queryClient);
+    await screen.findByRole("heading", { name: firstInner.expression });
+
+    await user.click(screen.getByRole("button", { name: "Edit inner card" }));
+    const notes = screen.getByLabelText("Notes");
+    await user.clear(notes);
+    await user.type(notes, updated.notes);
+    await user.click(
+      screen.getByRole("button", { name: "Save inner changes" }),
+    );
+
+    await waitFor(() => expect(updateInnerCard).toHaveBeenCalled());
+    expectOnlyFirstParentInvalidated(queryClient);
+  });
+
+  it("invalidates only the deleted inner card's parent review content", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { queryClient } = renderManagement(
+      "/cards/" + firstOuter.id + "/inner/" + firstInner.id,
+    );
+    seedReviewCaches(queryClient);
+    await screen.findByRole("heading", { name: firstInner.expression });
+
+    await user.click(screen.getByRole("button", { name: "Delete inner card" }));
+
+    await waitFor(() => expect(deleteInnerCard).toHaveBeenCalled());
+    expectOnlyFirstParentInvalidated(queryClient);
+  });
+
+  it("removes only the deleted outer card's review content", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { queryClient } = renderManagement("/cards/" + firstOuter.id);
+    seedReviewCaches(queryClient);
+    await screen.findByRole("heading", { name: firstOuter.term });
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(deleteOuterCard).toHaveBeenCalled());
+    expect(
+      queryClient.getQueryData(outerReviewKeys.innerContent(firstOuter.id)),
+    ).toBeUndefined();
+    expect(
+      queryClient.getQueryData(outerReviewKeys.innerContent(secondOuter.id)),
+    ).toEqual([foreignInner]);
   });
 });

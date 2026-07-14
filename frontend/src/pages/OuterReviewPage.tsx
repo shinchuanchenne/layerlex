@@ -9,16 +9,17 @@ import {
 import { OuterReviewDirectory } from "../components/OuterReviewDirectory";
 import { OuterReviewInnerContent } from "../components/OuterReviewInnerContent";
 import { getApiErrorMessage } from "../lib/api";
-import {
-  fetchCompleteOuterReviewDeck,
-  outerReviewKeys,
-} from "../lib/outerReview";
+import { fetchCompleteOuterReviewDeck } from "../lib/outerReview";
+import { outerReviewKeys } from "../lib/outerReviewKeys";
+import { useAutoShowInnerContentPreference } from "../lib/outerReviewPreferences";
 
 export function OuterReviewPage() {
   const { outerCardId } = useParams<{ outerCardId: string }>();
   const navigate = useNavigate();
   const [displayMode, setDisplayMode] =
     useState<OuterReviewDisplayMode>("flip");
+  const [automaticallyShowInnerContent, setAutomaticallyShowInnerContent] =
+    useAutoShowInnerContentPreference();
   const deckQuery = useQuery({
     queryKey: outerReviewKeys.orderedDeck(),
     queryFn: fetchCompleteOuterReviewDeck,
@@ -152,6 +153,46 @@ export function OuterReviewPage() {
                     Show both
                   </button>
                 </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={automaticallyShowInnerContent}
+                  onClick={() =>
+                    setAutomaticallyShowInnerContent(
+                      !automaticallyShowInnerContent,
+                    )
+                  }
+                  className="flex items-center gap-3 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-left focus:ring-2 focus:ring-cyan-600 focus:outline-none"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={
+                      "relative h-6 w-11 rounded-full transition " +
+                      (automaticallyShowInnerContent
+                        ? "bg-cyan-700"
+                        : "bg-slate-300")
+                    }
+                  >
+                    <span
+                      className={
+                        "absolute top-1 h-4 w-4 rounded-full bg-white transition " +
+                        (automaticallyShowInnerContent ? "left-6" : "left-1")
+                      }
+                    />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-900">
+                      Automatically show inner content
+                    </span>
+                    <span
+                      aria-live="polite"
+                      className="block text-xs text-slate-500"
+                    >
+                      Automatic display:{" "}
+                      {automaticallyShowInnerContent ? "On" : "Off"}
+                    </span>
+                  </span>
+                </button>
                 <Link
                   to={"/cards/" + currentCard.id}
                   className="text-sm font-semibold text-cyan-800 underline-offset-4 hover:underline focus:ring-2 focus:ring-cyan-600 focus:outline-none"
@@ -171,6 +212,7 @@ export function OuterReviewPage() {
               key={currentCard.id}
               outerCardId={currentCard.id}
               outerCardTerm={currentCard.term}
+              automaticallyShow={automaticallyShowInnerContent}
             />
 
             <nav

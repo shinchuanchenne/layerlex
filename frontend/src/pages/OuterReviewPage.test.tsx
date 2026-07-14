@@ -20,6 +20,7 @@ import {
   fetchCompleteOuterReviewDeck,
   fetchCompleteOuterReviewInnerContent,
 } from "../lib/outerReview";
+import { OUTER_REVIEW_AUTO_INNER_CONTENT_KEY } from "../lib/outerReviewPreferences";
 
 vi.mock("../lib/outerReview", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/outerReview")>();
@@ -140,6 +141,7 @@ function renderApp(route = "/review/outer") {
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
   vi.mocked(fetchCompleteOuterReviewDeck).mockResolvedValue(deck);
   vi.mocked(fetchCompleteOuterReviewInnerContent).mockResolvedValue([
     fullInnerCard,
@@ -153,6 +155,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
+  window.localStorage.clear();
   vi.clearAllMocks();
 });
 
@@ -558,5 +562,172 @@ describe("manual outer-review inner content", () => {
     ).toBeInTheDocument();
     expect(fetchCompleteOuterReviewDeck).toHaveBeenCalledTimes(1);
     expect(fetchCompleteOuterReviewInnerContent).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("persistent automatic inner-content display", () => {
+  function getAutomaticSwitch() {
+    return screen.getByRole("switch", {
+      name: /Automatically show inner content/,
+    });
+  }
+
+  it("defaults off with an accessible status and does not load inner content", async () => {
+    renderApp("/review/outer/" + firstCard.id);
+
+    await screen.findByLabelText("Review progress");
+    expect(getAutomaticSwitch()).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("Automatic display: Off")).toBeInTheDocument();
+    expect(fetchCompleteOuterReviewInnerContent).not.toHaveBeenCalled();
+  });
+
+  it("enables, persists, expands immediately, then disables and collapses", async () => {
+    const user = userEvent.setup();
+    renderApp("/review/outer/" + firstCard.id);
+    await screen.findByLabelText("Review progress");
+
+    await user.click(getAutomaticSwitch());
+    expect(getAutomaticSwitch()).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Automatic display: On")).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(OUTER_REVIEW_AUTO_INNER_CONTENT_KEY),
+    ).toBe("true");
+    expect(
+      await screen.findByRole("button", { name: "Hide inner content" }),
+    ).toBeInTheDocument();
+    expect(fetchCompleteOuterReviewInnerContent).toHaveBeenCalledWith(
+      firstCard.id,
+    );
+
+    await user.click(getAutomaticSwitch());
+    expect(getAutomaticSwitch()).toHaveAttribute("aria-checked", "false");
+    expect(
+      window.localStorage.getItem(OUTER_REVIEW_AUTO_INNER_CONTENT_KEY),
+    ).toBe("false");
+    expect(
+      await screen.findByRole("button", { name: "Show inner content" }),
+    ).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("restores the enabled preference after a review-page reload", async () => {
+    const user = userEvent.setup();
+    const firstView = renderApp("/review/outer/" + firstCard.id);
+    await screen.findByLabelText("Review progress");
+    await user.click(getAutomaticSwitch());
+    await screen.findByRole("button", { name: "Hide inner content" });
+    firstView.unmount();
+
+    renderApp("/review/outer/" + firstCard.id);
+
+    expect(await screen.findByLabelText("Review progress")).toHaveTextContent(
+      "1 / 3",
+    );
+    expect(getAutomaticSwitch()).toHaveAttribute("aria-checked", "true");
+    expect(
+      await screen.findByRole("button", { name: "Hide inner content" }),
+    ).toBeInTheDocument();
+  });
+
+  it("starts a direct URL and every navigated card expanded when enabled", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem(OUTER_REVIEW_AUTO_INNER_CONTENT_KEY, "true");
+    renderApp("/review/outer/" + secondCard.id);
+
+    expect(await screen.findByLabelText("Review progress")).toHaveTextContent(
+      "2 / 3",
+    );
+    expect(
+      await screen.findByRole("button", { name: "Hide inner content" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(fetchCompleteOuterReviewInnerContent).toHaveBeenCalledWith(
+      secondCard.id,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Previous card" }));
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("1 / 3");
+    expect(
+      await screen.findByRole("button", { name: "Hide inner content" }),
+    ).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(screen.getByRole("button", { name: "Next card" }));
+    await user.click(screen.getByRole("link", { name: /確認/ }));
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("3 / 3");
+    expect(
+      await screen.findByRole("button", { name: "Hide inner content" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(fetchCompleteOuterReviewInnerContent).toHaveBeenCalledWith(
+      firstCard.id,
+    );
+    expect(fetchCompleteOuterReviewInnerContent).toHaveBeenCalledWith(
+      thirdCard.id,
+    );
+  });
+
+  it("allows a manual hide while enabled and expands the next card again", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem(OUTER_REVIEW_AUTO_INNER_CONTENT_KEY, "true");
+    renderApp("/review/outer/" + firstCard.id);
+    await screen.findByLabelText("Review progress");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Hide inner content" }),
+    );
+    expect(getAutomaticSwitch()).toHaveAttribute("aria-checked", "true");
+    expect(
+      window.localStorage.getItem(OUTER_REVIEW_AUTO_INNER_CONTENT_KEY),
+    ).toBe("true");
+    await user.click(screen.getByRole("button", { name: "Show both" }));
+    expect(getAutomaticSwitch()).toHaveAttribute("aria-checked", "true");
+
+    await user.click(screen.getByRole("button", { name: "Next card" }));
+    expect(
+      await screen.findByRole("button", { name: "Hide inner content" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(getAutomaticSwitch()).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("keeps manual expansion independent while automatic display is off", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem(OUTER_REVIEW_AUTO_INNER_CONTENT_KEY, "false");
+    renderApp("/review/outer/" + firstCard.id);
+    await screen.findByLabelText("Review progress");
+
+    await user.click(
+      screen.getByRole("button", { name: "Show inner content" }),
+    );
+
+    expect(
+      await screen.findByText(fullInnerCard.expression),
+    ).toBeInTheDocument();
+    expect(getAutomaticSwitch()).toHaveAttribute("aria-checked", "false");
+    expect(
+      window.localStorage.getItem(OUTER_REVIEW_AUTO_INNER_CONTENT_KEY),
+    ).toBe("false");
+  });
+
+  it("survives localStorage read and write failures", async () => {
+    const readFailure = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new Error("Storage blocked");
+      });
+    const firstView = renderApp("/review/outer/" + firstCard.id);
+    await screen.findByLabelText("Review progress");
+    expect(getAutomaticSwitch()).toHaveAttribute("aria-checked", "false");
+    firstView.unmount();
+    readFailure.mockRestore();
+
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("Storage quota exceeded");
+    });
+    const user = userEvent.setup();
+    renderApp("/review/outer/" + firstCard.id);
+    await screen.findByLabelText("Review progress");
+    await user.click(getAutomaticSwitch());
+
+    expect(getAutomaticSwitch()).toHaveAttribute("aria-checked", "true");
+    expect(
+      await screen.findByRole("button", { name: "Hide inner content" }),
+    ).toBeInTheDocument();
   });
 });

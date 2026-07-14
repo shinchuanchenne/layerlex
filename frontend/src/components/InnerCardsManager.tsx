@@ -21,6 +21,7 @@ import {
   type InnerCardUpdateInput,
 } from "../lib/innerCards";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
+import { outerReviewKeys } from "../lib/outerReviewKeys";
 import { InnerCardDetail } from "./InnerCardDetail";
 import { InnerCardDirectory } from "./InnerCardDirectory";
 import { InnerCardForm } from "./InnerCardForm";
@@ -100,6 +101,9 @@ export function InnerCardsManager({
       void queryClient.invalidateQueries({
         queryKey: innerCardKeys.parentLists(outerCardId),
       });
+      void queryClient.invalidateQueries({
+        queryKey: outerReviewKeys.innerContent(outerCardId),
+      });
       setFormState(null);
       navigate("/cards/" + outerCardId + "/inner/" + createdCard.id);
     },
@@ -121,6 +125,9 @@ export function InnerCardsManager({
       updateLoadedLists(updatedCard);
       void queryClient.invalidateQueries({
         queryKey: innerCardKeys.parentLists(outerCardId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: outerReviewKeys.innerContent(updatedCard.outer_card_id),
       });
       setFormState(null);
     },
@@ -151,6 +158,9 @@ export function InnerCardsManager({
       );
       void queryClient.invalidateQueries({
         queryKey: innerCardKeys.parentLists(outerCardId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: outerReviewKeys.innerContent(outerCardId),
       });
       setFormState(null);
       navigate("/cards/" + outerCardId);

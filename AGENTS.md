@@ -15,11 +15,10 @@ cloud deployment, AI-generated vocabulary, spaced repetition, Redux, Firebase,
 Supabase, Next.js, or a component library unless the user explicitly expands scope.
 
 Stages 3 and 4 contain both CRUD APIs. Stages 5A and 5B contain the outer-card and
-inner-card management UI. Stage 6A contains basic ordered outer-card review, and Stage
-6B adds manually expanded, read-only inner content for the selected outer card. Automatic
-inner display, persistent review preferences, inner review, shuffle, and global review
-shortcuts remain outside the implemented scope. Keep future changes narrowly aligned
-with the requested iteration.
+inner-card management UI. Stage 6A contains basic ordered outer-card review, Stage 6B
+adds read-only inner content, and Stage 6C adds the persistent automatic-display
+preference. Inner review, shuffle, and global review shortcuts remain outside the
+implemented scope. Keep future changes narrowly aligned with the requested iteration.
 
 ## Architecture conventions
 
@@ -56,9 +55,17 @@ with the requested iteration.
   and fetches all inner-card pages through the reported `total`. It is lazy-loaded only
   after manual expansion and remains separate from the outer card's front/back fields.
 - Expanded/collapsed inner-content state is local UI state keyed by outer-card ID.
-  Changing outer cards must begin collapsed; changing display mode for the same card
-  must not close the panel. Inner loading and errors remain local to the panel and must
-  not replace the outer review interface.
+  A newly selected card initializes from the automatic-display preference; with the
+  preference off it begins collapsed. Changing display mode for the same card must not
+  close the panel. Inner loading and errors remain local to the panel and must not
+  replace the outer review interface.
+- Store the automatic inner-content preference under the versioned browser key
+  `layerlex.outerReview.autoShowInnerContent.v1`. Missing, invalid, or inaccessible
+  storage defaults off. Manual Show/Hide is a per-card override and must not change the
+  saved automatic preference; a newly selected card initializes from that preference.
+- Inner-card create, update, and delete mutations must invalidate the affected
+  `outerReviewKeys.innerContent(outerCardId)` query without invalidating unrelated
+  parents. Deleting an outer card must remove its corresponding review-content query.
 - Local frontend development uses the Vite `/api` proxy to port 8000. Use
   `VITE_API_BASE_URL` only when an explicit API origin is required; Vite reads the
   repository-root `.env` through `envDir`.

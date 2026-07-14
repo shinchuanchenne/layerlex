@@ -1,23 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { getApiErrorMessage } from "../lib/api";
-import {
-  fetchCompleteOuterReviewInnerContent,
-  outerReviewKeys,
-} from "../lib/outerReview";
+import { fetchCompleteOuterReviewInnerContent } from "../lib/outerReview";
+import { outerReviewKeys } from "../lib/outerReviewKeys";
 
 interface OuterReviewInnerContentProps {
   outerCardId: string;
   outerCardTerm: string;
+  automaticallyShow: boolean;
 }
 
 export function OuterReviewInnerContent({
   outerCardId,
   outerCardTerm,
+  automaticallyShow,
 }: OuterReviewInnerContentProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(automaticallyShow);
+  const previousAutomaticPreference = useRef(automaticallyShow);
   const panelId = "outer-review-inner-content-" + outerCardId;
   const innerContentQuery = useQuery({
     queryKey: outerReviewKeys.innerContent(outerCardId),
@@ -30,6 +31,12 @@ export function OuterReviewInnerContent({
     ? getApiErrorMessage(innerContentQuery.error)
     : undefined;
   const innerCards = innerContentQuery.data ?? [];
+
+  useEffect(() => {
+    if (previousAutomaticPreference.current === automaticallyShow) return;
+    previousAutomaticPreference.current = automaticallyShow;
+    setIsExpanded(automaticallyShow);
+  }, [automaticallyShow]);
 
   return (
     <section className="mt-7">

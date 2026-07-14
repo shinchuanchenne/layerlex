@@ -26,6 +26,7 @@ import {
   type OuterCardUpdateInput,
 } from "../lib/outerCards";
 import { useDebouncedValue } from "../lib/useDebouncedValue";
+import { outerReviewKeys } from "../lib/outerReviewKeys";
 
 const PAGE_SIZE = 10;
 
@@ -137,6 +138,9 @@ export function OuterCardsPage() {
         predicate: (query) =>
           (query.state.data as InnerCard | undefined)?.outer_card_id ===
           deletedCardId,
+      });
+      queryClient.removeQueries({
+        queryKey: outerReviewKeys.innerContent(deletedCardId),
       });
       navigate("/cards");
     },

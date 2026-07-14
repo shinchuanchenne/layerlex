@@ -1,15 +1,10 @@
 import { listInnerCards, type InnerCard } from "./innerCards";
 import { listOuterCards, type OuterCard } from "./outerCards";
 
+export { outerReviewKeys } from "./outerReviewKeys";
+
 export const OUTER_REVIEW_PAGE_SIZE = 200;
 export const OUTER_REVIEW_INNER_PAGE_SIZE = 200;
-
-export const outerReviewKeys = {
-  all: ["outer-review"] as const,
-  orderedDeck: () => [...outerReviewKeys.all, "ordered-deck"] as const,
-  innerContent: (outerCardId: string) =>
-    [...outerReviewKeys.all, "inner-content", outerCardId] as const,
-};
 
 export async function fetchCompleteOuterReviewDeck(): Promise<OuterCard[]> {
   const deck: OuterCard[] = [];
