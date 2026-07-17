@@ -12,6 +12,7 @@ import {
   InnerReviewCard,
   type InnerReviewDisplayMode,
 } from "../components/InnerReviewCard";
+import { BilingualSpeechControls } from "../components/BilingualSpeechControls";
 import { InnerReviewDirectory } from "../components/InnerReviewDirectory";
 import { ReviewKeyboardHelp } from "../components/ReviewKeyboardHelp";
 import { getApiErrorMessage } from "../lib/api";
@@ -484,6 +485,18 @@ export function InnerReviewPage() {
               canGoNext={currentIndex < deck.length - 1}
               onPrevious={() => goToIndex(currentIndex - 1)}
               onNext={() => goToIndex(currentIndex + 1)}
+            />
+
+            <BilingualSpeechControls
+              key={[
+                deckId ?? "global",
+                currentCard.id,
+                isShuffled ? `shuffle-${activeShuffleSeed}` : "ordered",
+              ].join(":")}
+              chineseText={currentCard.meaning}
+              japaneseText={currentCard.expression}
+              itemLabel={currentCard.expression}
+              accent="violet"
             />
 
             <ReviewKeyboardHelp

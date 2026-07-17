@@ -6,8 +6,9 @@ examples.
 
 This repository currently contains the project foundation, persistent deck and
 flashcard models, deck and card CRUD APIs, management pages for both card layers, and
-ordered and shuffled outer- and inner-card review interfaces. It includes intentional
-SQLite file storage, Alembic migrations, and development tooling.
+ordered and shuffled outer- and inner-card review interfaces with explicit single-card
+Chinese-to-Japanese browser speech playback. It includes intentional SQLite file
+storage, Alembic migrations, and development tooling.
 
 ## Stack
 
@@ -76,13 +77,13 @@ Open <http://localhost:5173>. The dedicated frontend health page is at
 
 ## Environment variables
 
-| Variable | Purpose | Example |
-| --- | --- | --- |
-| `DATABASE_URL` | SQLAlchemy/SQLModel connection URL | `sqlite:///./data/layerlex.db` |
-| `CORS_ORIGINS` | Comma-separated browser origins | `http://localhost:5173` |
-| `BACKEND_PORT` | Documented backend port | `8000` |
-| `FRONTEND_PORT` | Documented frontend port | `5173` |
-| `VITE_API_BASE_URL` | Optional API origin compiled into the frontend; blank uses the development proxy | blank |
+| Variable            | Purpose                                                                          | Example                        |
+| ------------------- | -------------------------------------------------------------------------------- | ------------------------------ |
+| `DATABASE_URL`      | SQLAlchemy/SQLModel connection URL                                               | `sqlite:///./data/layerlex.db` |
+| `CORS_ORIGINS`      | Comma-separated browser origins                                                  | `http://localhost:5173`        |
+| `BACKEND_PORT`      | Documented backend port                                                          | `8000`                         |
+| `FRONTEND_PORT`     | Documented frontend port                                                         | `5173`                         |
+| `VITE_API_BASE_URL` | Optional API origin compiled into the frontend; blank uses the development proxy | blank                          |
 
 Vite only exposes frontend variables prefixed with `VITE_`. Do not put secrets in any
 `VITE_` variable. Vite reads the repository-root `.env` because this monorepo sets
@@ -139,12 +140,12 @@ same local EBS-backed filesystem in production.
 
 Deck endpoints are available under `/api/v1/decks`:
 
-| Method | Path | Result |
-| --- | --- | --- |
-| `POST` | `/api/v1/decks` | Create a deck and return HTTP 201 |
-| `GET` | `/api/v1/decks` | List and paginate decks |
-| `GET` | `/api/v1/decks/{id}` | Retrieve one deck |
-| `PATCH` | `/api/v1/decks/{id}` | Partially update one deck |
+| Method   | Path                 | Result                                   |
+| -------- | -------------------- | ---------------------------------------- |
+| `POST`   | `/api/v1/decks`      | Create a deck and return HTTP 201        |
+| `GET`    | `/api/v1/decks`      | List and paginate decks                  |
+| `GET`    | `/api/v1/decks/{id}` | Retrieve one deck                        |
+| `PATCH`  | `/api/v1/decks/{id}` | Partially update one deck                |
 | `DELETE` | `/api/v1/decks/{id}` | Delete an empty deck and return HTTP 204 |
 
 Create a deck:
@@ -171,12 +172,12 @@ cards. Move or delete its outer cards first.
 
 The outer-card endpoints are available under `/api/v1/outer-cards`:
 
-| Method | Path | Result |
-| --- | --- | --- |
-| `POST` | `/api/v1/outer-cards` | Create a card and return HTTP 201 |
-| `GET` | `/api/v1/outer-cards` | List, search, and paginate cards |
-| `GET` | `/api/v1/outer-cards/{id}` | Retrieve one card |
-| `PATCH` | `/api/v1/outer-cards/{id}` | Partially update one card |
+| Method   | Path                       | Result                              |
+| -------- | -------------------------- | ----------------------------------- |
+| `POST`   | `/api/v1/outer-cards`      | Create a card and return HTTP 201   |
+| `GET`    | `/api/v1/outer-cards`      | List, search, and paginate cards    |
+| `GET`    | `/api/v1/outer-cards/{id}` | Retrieve one card                   |
+| `PATCH`  | `/api/v1/outer-cards/{id}` | Partially update one card           |
 | `DELETE` | `/api/v1/outer-cards/{id}` | Delete one card and return HTTP 204 |
 
 Create a card:
@@ -227,14 +228,14 @@ inner-card content. Interactive API documentation and request schemas are availa
 Create and list inner cards through their outer-card relationship. Retrieve, update,
 and delete a known inner card directly:
 
-| Method | Path | Result |
-| --- | --- | --- |
-| `GET` | `/api/v1/inner-cards` | List, search, and paginate all inner cards globally |
-| `POST` | `/api/v1/outer-cards/{outer_id}/inner-cards` | Create an inner card and return HTTP 201 |
-| `GET` | `/api/v1/outer-cards/{outer_id}/inner-cards` | List, search, and paginate one outer card's inner cards |
-| `GET` | `/api/v1/inner-cards/{inner_id}` | Retrieve one inner card |
-| `PATCH` | `/api/v1/inner-cards/{inner_id}` | Partially update one inner card |
-| `DELETE` | `/api/v1/inner-cards/{inner_id}` | Delete one inner card and return HTTP 204 |
+| Method   | Path                                         | Result                                                  |
+| -------- | -------------------------------------------- | ------------------------------------------------------- |
+| `GET`    | `/api/v1/inner-cards`                        | List, search, and paginate all inner cards globally     |
+| `POST`   | `/api/v1/outer-cards/{outer_id}/inner-cards` | Create an inner card and return HTTP 201                |
+| `GET`    | `/api/v1/outer-cards/{outer_id}/inner-cards` | List, search, and paginate one outer card's inner cards |
+| `GET`    | `/api/v1/inner-cards/{inner_id}`             | Retrieve one inner card                                 |
+| `PATCH`  | `/api/v1/inner-cards/{inner_id}`             | Partially update one inner card                         |
+| `DELETE` | `/api/v1/inner-cards/{inner_id}`             | Delete one inner card and return HTTP 204               |
 
 Create an inner card by replacing `{outer_id}` with an existing outer-card UUID:
 
@@ -580,7 +581,57 @@ non-empty deletion preserves them. Shuffled permutations remain derived data and
 never stored as server cache or browser preferences.
 
 Multiple-deck review, ratings, spaced repetition, review history, authentication, and
-audio playback are outside this stage.
+cross-deck review are outside this stage.
+
+## Single-card browser speech
+
+All global and deck-scoped outer- and inner-review routes provide an explicit
+**Play Chinese then Japanese** action:
+
+```text
+/review/outer/{outerCardId}
+/review/decks/{deckId}/outer/{outerCardId}
+/review/inner/{innerCardId}
+/review/decks/{deckId}/inner/{innerCardId}
+```
+
+Stage 12A uses the browser Web Speech API (`window.speechSynthesis` and
+`SpeechSynthesisUtterance`). It generates synthetic speech locally in the browser; it
+does not create, download, upload, cache, or persist audio files. No API key, backend
+TTS service, database audio field, Amazon Polly configuration, or external credential
+is required.
+
+Each explicit playback follows one sequence:
+
+1. speak the current card's Chinese `meaning` with language `zh-TW`;
+2. wait 650 milliseconds;
+3. speak the outer `term` or inner `expression` with language `ja-JP`.
+
+Readings remain visible study context but are not spoken as a third segment. Notes,
+usage notes, parts of speech, JLPT levels, deck names, parent context, progress, and
+interface labels are also excluded from speech.
+
+Voice selection prefers an exact language match, then another voice in the same `zh`
+or `ja` language family. If no matching voice object is available, LayerLex still sets
+the utterance language and lets the browser choose its default voice. Available voices
+and pronunciation quality therefore depend on the operating system, browser, and
+installed voices. Browser autoplay rules also require playback to begin from the
+visible Play button.
+
+The visible status distinguishes Chinese speech, the pause, Japanese speech,
+completion, stop, failure, and unsupported browsers. **Stop audio** cancels either
+active speech or the pause. Starting Play again restarts from Chinese without
+overlapping sessions. Playback is also cancelled when the selected card, Ordered or
+Shuffle mode, shuffle seed, review route, or page changes. Switching Flip/Show both for
+the same card keeps the current sequence playing.
+
+Speech controls do not flip or reveal the card, navigate, advance progress, alter the
+directory, generate a shuffle seed, show or hide inner content, change the automatic
+inner-content preference, or modify URL state. Existing ArrowLeft, ArrowRight, and
+Space shortcuts retain only their documented review actions; Stage 12A adds no audio
+shortcut. Continuous card-to-card listening, automatic next-card navigation,
+background playback, playback settings, Amazon Polly, and persistent MP3 generation
+are deferred to later stages.
 
 ### Review keyboard shortcuts
 

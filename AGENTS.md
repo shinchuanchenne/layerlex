@@ -23,7 +23,9 @@ review shuffle, and Stage 8B applies the same complete-round model to inner revi
 Stage 9 adds guarded ArrowLeft, ArrowRight, and Space shortcuts to both review pages.
 Stage 11A adds persistent decks and assigns every outer card to exactly one deck.
 Stage 11B makes `/decks` the single deck-aware management workspace. Stage 11C adds
-deck-scoped outer and inner review while preserving both global review modes.
+deck-scoped outer and inner review while preserving both global review modes. Stage 12A
+adds explicit single-card Chinese-to-Japanese browser speech playback to all four
+review contexts.
 Keep future changes narrowly aligned with the requested iteration.
 
 ## Architecture conventions
@@ -164,6 +166,27 @@ Keep future changes narrowly aligned with the requested iteration.
 - Keep visible, boundary-aware keyboard help on both review pages. Shortcuts supplement
   the existing buttons and must never be the only way to perform an action. Do not add
   review shortcuts to management or other application pages.
+- Single-card speech uses the browser Web Speech API through one shared, domain-neutral
+  controller, hook, and control component. Outer review maps `meaning` then `term`;
+  inner review maps `meaning` then `expression`. Set utterance languages to `zh-TW` and
+  `ja-JP`, prefer exact then language-family voice matches, and let the browser select
+  its default voice when no matching voice object is available. Do not speak readings,
+  notes, usage metadata, parent context, or interface labels.
+- Speech is synthetic browser output, not stored audio. It must not introduce backend
+  TTS dependencies, secrets, database fields, audio files, or queue persistence.
+  Playback begins only after an explicit user action and supports one LayerLex sequence
+  at a time: Chinese, a named short pause, then Japanese.
+- Stop speech and clear its pause timer when the card, review order, shuffle seed,
+  review route, or mounted review page changes. Ignore stale utterance callbacks after
+  cancellation or restart. Flip/Show both changes for the same card may keep playing,
+  but speech must never flip, navigate, reveal content, change progress, alter the
+  automatic-inner preference, or modify Ordered/Shuffle URL state. Stage 12A does not
+  automatically advance or continuously play a deck.
+- Browser voices may arrive asynchronously. Refresh voice discovery on
+  `voiceschanged`, remove listeners and timers during cleanup, keep review usable when
+  speech is unsupported, and normalize playback errors without logging expected
+  cancellation noise. Automated tests must use controllable fake speech APIs and never
+  produce real audio.
 - Local frontend development uses the Vite `/api` proxy to port 8000. Use
   `VITE_API_BASE_URL` only when an explicit API origin is required; Vite reads the
   repository-root `.env` through `envDir`.

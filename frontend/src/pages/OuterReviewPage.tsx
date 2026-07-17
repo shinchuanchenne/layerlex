@@ -12,6 +12,7 @@ import {
   OuterReviewCard,
   type OuterReviewDisplayMode,
 } from "../components/OuterReviewCard";
+import { BilingualSpeechControls } from "../components/BilingualSpeechControls";
 import { OuterReviewDirectory } from "../components/OuterReviewDirectory";
 import { OuterReviewInnerContent } from "../components/OuterReviewInnerContent";
 import { ReviewKeyboardHelp } from "../components/ReviewKeyboardHelp";
@@ -445,6 +446,17 @@ export function OuterReviewPage() {
               canGoNext={currentIndex < deck.length - 1}
               onPrevious={() => goToIndex(currentIndex - 1)}
               onNext={() => goToIndex(currentIndex + 1)}
+            />
+
+            <BilingualSpeechControls
+              key={[
+                deckId ?? "global",
+                currentCard.id,
+                isShuffled ? `shuffle-${activeShuffleSeed}` : "ordered",
+              ].join(":")}
+              chineseText={currentCard.meaning}
+              japaneseText={currentCard.term}
+              itemLabel={currentCard.term}
             />
 
             <ReviewKeyboardHelp

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -12,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../App";
 import { ApiError } from "../lib/api";
+import { BILINGUAL_SPEECH_PAUSE_MS } from "../lib/bilingualSpeech";
 import { retrieveDeck, type Deck } from "../lib/decks";
 import { retrieveInnerCard, type InnerCard } from "../lib/innerCards";
 import {
@@ -29,6 +31,7 @@ import {
   deterministicShuffle,
   generateShuffleSeed,
 } from "../lib/reviewShuffle";
+import { installFakeSpeechSynthesis } from "../test/fakeSpeechSynthesis";
 
 vi.mock("../lib/innerReview", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/innerReview")>();
@@ -191,6 +194,93 @@ beforeEach(() => {
     total: outerDeck.length,
     offset: 0,
     limit: 10,
+  });
+});
+
+describe("inner review bilingual speech", () => {
+  it("speaks the global inner meaning then expression without speaking parent context", async () => {
+    const installed = installFakeSpeechSynthesis();
+    try {
+      renderApp("/review/inner/" + firstInner.id);
+      await screen.findByLabelText("Inner review progress");
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Play Chinese then Japanese for 経験を積む",
+        }),
+      );
+      expect(installed.synthesis.spokenUtterances[0].text).toBe(
+        firstInner.meaning,
+      );
+
+      vi.useFakeTimers();
+      act(() => installed.synthesis.finishCurrent());
+      await act(() => vi.advanceTimersByTimeAsync(BILINGUAL_SPEECH_PAUSE_MS));
+      expect(installed.synthesis.spokenUtterances[1].text).toBe(
+        firstInner.expression,
+      );
+      expect(
+        installed.synthesis.spokenUtterances.map((utterance) => utterance.text),
+      ).not.toContain(firstOuter.term);
+      expect(
+        installed.synthesis.spokenUtterances.map((utterance) => utterance.text),
+      ).not.toContain(firstInner.reading);
+    } finally {
+      vi.useRealTimers();
+      installed.restore();
+    }
+  });
+
+  it("supports deck-scoped speech and cancels when directory navigation changes cards", async () => {
+    const installed = installFakeSpeechSynthesis();
+    try {
+      const route =
+        "/review/decks/" +
+        selectedDeck.id +
+        "/inner/" +
+        firstInner.id +
+        "?mode=shuffle&seed=321";
+      renderApp(route);
+      await screen.findByLabelText("Inner review progress");
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Play Chinese then Japanese for 経験を積む",
+        }),
+      );
+
+      const destination = screen.getByRole("link", {
+        name: new RegExp(secondInner.expression),
+      });
+      fireEvent.click(destination);
+
+      expect(installed.synthesis.cancel).toHaveBeenCalledTimes(1);
+      expect(screen.getByLabelText("Current route")).toHaveTextContent(
+        "?mode=shuffle&seed=321",
+      );
+    } finally {
+      installed.restore();
+    }
+  });
+
+  it("keeps missing-parent cards playable and cancels speech on unmount", async () => {
+    const installed = installFakeSpeechSynthesis();
+    try {
+      const view = renderApp("/review/inner/" + missingParentInner.id);
+      await screen.findByLabelText("Inner review progress");
+      expect(
+        screen.getAllByText("Parent card unavailable").length,
+      ).toBeGreaterThan(0);
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Play Chinese then Japanese for 親なし",
+        }),
+      );
+      view.unmount();
+      expect(installed.synthesis.cancel).toHaveBeenCalledTimes(1);
+    } finally {
+      installed.restore();
+    }
   });
 });
 

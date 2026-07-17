@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -12,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../App";
 import { ApiError } from "../lib/api";
+import { BILINGUAL_SPEECH_PAUSE_MS } from "../lib/bilingualSpeech";
 import { retrieveDeck, type Deck } from "../lib/decks";
 import {
   listInnerCards,
@@ -34,6 +36,7 @@ import {
   deterministicShuffle,
   generateShuffleSeed,
 } from "../lib/reviewShuffle";
+import { installFakeSpeechSynthesis } from "../test/fakeSpeechSynthesis";
 
 vi.mock("../lib/outerReview", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/outerReview")>();
@@ -392,6 +395,101 @@ describe("outer review deck states and routing", () => {
       "aria-current",
       "page",
     );
+  });
+});
+
+describe("outer review bilingual speech", () => {
+  it("speaks the global outer meaning then term without revealing or navigating", async () => {
+    const installed = installFakeSpeechSynthesis();
+    try {
+      renderApp("/review/outer/" + firstCard.id);
+      await screen.findByLabelText("Review progress");
+      const route = screen.getByLabelText("Current route").textContent;
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Play Chinese then Japanese for 経験",
+        }),
+      );
+      expect(installed.synthesis.spokenUtterances[0].text).toBe(
+        firstCard.meaning,
+      );
+      expect(
+        screen.queryByText(firstCard.meaning, { selector: "dd" }),
+      ).not.toBeInTheDocument();
+
+      vi.useFakeTimers();
+      act(() => installed.synthesis.finishCurrent());
+      await act(() => vi.advanceTimersByTimeAsync(BILINGUAL_SPEECH_PAUSE_MS));
+      expect(installed.synthesis.spokenUtterances[1].text).toBe(firstCard.term);
+      expect(installed.synthesis.spokenUtterances).toHaveLength(2);
+      expect(screen.getByLabelText("Current route")).toHaveTextContent(
+        route ?? "",
+      );
+    } finally {
+      vi.useRealTimers();
+      installed.restore();
+    }
+  });
+
+  it("supports deck-scoped playback and cancels it when keyboard navigation changes cards", async () => {
+    const installed = installFakeSpeechSynthesis();
+    try {
+      const route =
+        "/review/decks/" +
+        selectedDeck.id +
+        "/outer/" +
+        firstCard.id +
+        "?mode=shuffle&seed=321";
+      renderApp(route);
+      await screen.findByLabelText("Review progress");
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Play Chinese then Japanese for 経験",
+        }),
+      );
+      fireEvent.keyDown(document, { key: "ArrowRight" });
+
+      expect(installed.synthesis.cancel).toHaveBeenCalledTimes(1);
+      expect(screen.getByLabelText("Current route")).toHaveTextContent(
+        "?mode=shuffle&seed=321",
+      );
+      expect(
+        screen.getByRole("button", {
+          name: /Play Chinese then Japanese for/,
+        }),
+      ).toBeEnabled();
+    } finally {
+      installed.restore();
+    }
+  });
+
+  it("keeps playback active across Flip and Show both but cancels for a new shuffled round", async () => {
+    const installed = installFakeSpeechSynthesis();
+    try {
+      renderApp("/review/outer/" + firstCard.id);
+      await screen.findByLabelText("Review progress");
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Play Chinese then Japanese for 経験",
+        }),
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Show both" }));
+      expect(installed.synthesis.cancel).not.toHaveBeenCalled();
+      expect(screen.getByText("Speaking Chinese…")).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "New shuffled round" }),
+      );
+      expect(installed.synthesis.cancel).toHaveBeenCalledTimes(1);
+      expect(screen.getByLabelText("Current route")).toHaveTextContent(
+        "?mode=shuffle&seed=20260714",
+      );
+    } finally {
+      installed.restore();
+    }
   });
 });
 
