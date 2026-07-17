@@ -301,24 +301,44 @@ without inner cards do not create placeholder items, and each result continues t
 its own `outer_card_id`. The existing parent-scoped endpoint remains the appropriate API
 when only one outer card's usage content is needed.
 
-## Outer-card management page
+## Deck and card management
 
 Start the backend on port 8000 and the frontend on port 5173, then open
-<http://localhost:5173/cards>. The selected outer card is stored in the URL as
-`/cards/{outerCardId}`, so refreshing or sharing the address preserves that selection.
+<http://localhost:5173/decks>. Management selection is URL-backed:
 
-Stage 11A changes the backend outer-card contract to require `deck_id`. Deck-aware
-frontend controls are intentionally deferred to Stage 11B, so use the FastAPI
-documentation for deck and outer-card creation or movement until that frontend stage is
-implemented.
+```text
+/decks
+/decks/{deckId}
+/decks/{deckId}/cards/{outerCardId}
+/decks/{deckId}/cards/{outerCardId}/inner/{innerCardId}
+```
+
+The legacy `/cards` routes redirect to `/decks`, so LayerLex has one management
+workspace rather than conflicting global and deck-aware experiences. Direct navigation,
+refresh, browser history, and shared URLs restore the selected deck, outer card, and
+inner card.
 
 The responsive management page provides:
 
-- a searchable, paginated outer-card directory;
+- a backend-ordered, paginated deck directory with create, edit, and confirmed delete;
+- a searchable, paginated outer-card directory filtered by the selected `deck_id`;
 - selected outer-card details with a nested inner-card management section;
-- create and edit forms with client and FastAPI validation feedback;
-- confirmed deletion with the existing backend cascade behavior;
-- loading, error, retry, empty-database, and empty-search states.
+- loading, error, retry, empty-list, empty-search, validation, and conflict states;
+- route mismatch protection when an outer card does not belong to the selected deck.
+
+Creating an outer card uses the selected deck automatically, so the user never enters a
+raw UUID. Editing shows a named deck selector. Moving a card sends `deck_id` only when
+it changes, navigates to the destination deck, and preserves every inner card because
+the outer-card ID is unchanged.
+
+Deck deletion never cascades to vocabulary. Empty decks can be deleted; a non-empty
+deck returns HTTP 409 and the interface explains that its cards must first be moved or
+deleted.
+
+TanStack Query keeps deck details and directories separate from deck-scoped outer-card
+lists. Moving a card refreshes both source and destination lists while retaining its
+inner-card caches. Existing outer and inner review source-deck invalidation still
+applies. Review remains global until Stage 11C adds deck-scoped review.
 
 During local development, browser requests to `/api` are proxied by Vite to
 `http://localhost:8000`. Leave `VITE_API_BASE_URL` blank to use this proxy. Set it to
@@ -328,23 +348,20 @@ server.
 
 ## Inner-card management
 
-Select an outer card at `/cards/{outerCardId}` to load only that card's inner-card
-directory. Selecting an inner card changes the route to
-`/cards/{outerCardId}/inner/{innerCardId}`. Both IDs are therefore restored by direct
-navigation, refresh, browser history, or a shared URL.
+Select an outer card at `/decks/{deckId}/cards/{outerCardId}` to load only that card's
+inner-card directory. Selecting an inner card changes the route to
+`/decks/{deckId}/cards/{outerCardId}/inner/{innerCardId}`. All three selections are
+therefore restored by direct navigation, refresh, browser history, or a shared URL.
 
 The inner-card section provides server-side search and pagination, full create, edit,
 retrieve, and delete management, parent mismatch protection, and loading, empty,
 error, and retry states. Creating and editing never accepts an editable parent ID;
-the parent comes from the selected outer-card route. Deleting an inner card preserves
-its outer card and sibling inner cards, while deleting an outer card clears its
-associated frontend inner-card caches.
+the parent comes from the selected outer-card route. Inner cards inherit deck ownership
+through that parent and do not have an editable `deck_id`. Deleting an inner card
+preserves its outer card and sibling inner cards, while deleting an outer card clears
+its associated frontend inner-card caches.
 
-Stage 5B is a management interface only. It does not implement card flipping, review
-navigation, review queues, shuffle, keyboard review controls, or automatic inner
-content preferences.
-
-Use the same local startup commands above, then open <http://localhost:5173/cards>.
+Use the same local startup commands above, then open <http://localhost:5173/decks>.
 Run focused frontend management tests with:
 
 ```bash
@@ -426,7 +443,8 @@ automatic switch is independent from Flip mode and Show both.
 
 Loading and API errors stay inside the usage panel, so the outer card and its navigation
 remain usable. The error state can retry only that outer card's inner content. An empty
-panel links to `/cards/{outerCardId}` to add or manage inner cards; review mode itself
+panel links to `/decks/{deckId}/cards/{outerCardId}` to add or manage inner cards;
+review mode itself
 does not contain create, edit, or delete actions. Inner-card create, update, and delete
 operations invalidate the affected parent’s aggregated review-content query, while
 deleting an outer card removes only that parent’s review-content cache.

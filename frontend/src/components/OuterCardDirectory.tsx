@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import type { OuterCard } from "../lib/outerCards";
 
 interface OuterCardDirectoryProps {
+  deckId: string;
+  deckName: string;
   cards: OuterCard[];
   selectedCardId?: string;
   searchInput: string;
@@ -20,6 +22,8 @@ interface OuterCardDirectoryProps {
 }
 
 export function OuterCardDirectory({
+  deckId,
+  deckName,
   cards,
   selectedCardId,
   searchInput,
@@ -43,16 +47,21 @@ export function OuterCardDirectory({
   return (
     <aside
       aria-label="Outer card directory"
-      className="flex min-h-[32rem] flex-col border-b border-slate-200 bg-white lg:min-h-screen lg:border-r lg:border-b-0"
+      className="flex min-h-[32rem] flex-col border-b border-slate-200 bg-white lg:min-h-[48rem] lg:border-r lg:border-b-0"
     >
       <header className="border-b border-slate-200 px-5 py-6 sm:px-7">
         <p className="text-xs font-bold tracking-[0.22em] text-cyan-700 uppercase">
-          Vocabulary workspace
+          Cards in deck
         </p>
         <div className="mt-2 flex items-center justify-between gap-4">
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-            LayerLex
-          </h1>
+          <div className="min-w-0">
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+              Outer cards
+            </h2>
+            <p className="mt-1 text-sm break-words text-slate-500">
+              {deckName}
+            </p>
+          </div>
           <button
             type="button"
             onClick={onAdd}
@@ -61,21 +70,6 @@ export function OuterCardDirectory({
             Add card
           </button>
         </div>
-        <nav aria-label="Review modes" className="mt-4 flex flex-wrap gap-4">
-          <Link
-            to="/review/outer"
-            className="text-sm font-semibold text-cyan-800 underline-offset-4 hover:underline focus:ring-2 focus:ring-cyan-600 focus:outline-none"
-          >
-            Start outer review
-          </Link>
-          <Link
-            to="/review/inner"
-            className="text-sm font-semibold text-violet-800 underline-offset-4 hover:underline focus:ring-2 focus:ring-violet-600 focus:outline-none"
-          >
-            Start inner review
-          </Link>
-        </nav>
-
         <label
           htmlFor="outer-card-search"
           className="mt-6 block text-sm font-semibold text-slate-700"
@@ -129,7 +123,7 @@ export function OuterCardDirectory({
               return (
                 <li key={card.id}>
                   <Link
-                    to={"/cards/" + card.id}
+                    to={"/decks/" + deckId + "/cards/" + card.id}
                     onClick={onSelect}
                     aria-current={isSelected ? "page" : undefined}
                     className={

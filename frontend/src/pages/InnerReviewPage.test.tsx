@@ -55,6 +55,7 @@ vi.mock("../lib/outerCards", async (importOriginal) => {
 
 const firstOuter: OuterCard = {
   id: "11111111-1111-4111-8111-111111111111",
+  deck_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
   term: "経験",
   reading: "けいけん",
   part_of_speech: "名詞",
@@ -179,7 +180,7 @@ describe("inner review deck states and routing", () => {
     expect(await screen.findByText("Empty inner deck")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Go to card management" }),
-    ).toHaveAttribute("href", "/cards");
+    ).toHaveAttribute("href", "/decks");
   });
 
   it("shows a deck error and retries only the ordered inner deck", async () => {
@@ -403,16 +404,17 @@ describe("inner review parent context and regressions", () => {
   });
 
   it("preserves management and outer-review entry points without later-stage controls", async () => {
-    renderApp("/cards");
+    renderApp("/review/inner/" + firstInner.id);
     expect(
-      await screen.findByRole("heading", { name: "Select a vocabulary word" }),
+      await screen.findByLabelText("Inner review progress"),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Start inner review" }),
-    ).toHaveAttribute("href", "/review/inner");
-    expect(screen.queryByRole("button", { name: /shuffle/i })).toBeNull();
-
-    expect(listOuterCards).toHaveBeenCalledTimes(1);
+      screen.getByRole("link", { name: "Card management" }),
+    ).toHaveAttribute("href", "/decks");
+    expect(screen.getByRole("link", { name: "Outer review" })).toHaveAttribute(
+      "href",
+      "/review/outer",
+    );
   });
 });
 

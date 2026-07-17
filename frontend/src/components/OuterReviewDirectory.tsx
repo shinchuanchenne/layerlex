@@ -36,7 +36,7 @@ export function OuterReviewDirectory({
           className="mt-5 flex flex-wrap gap-4"
         >
           <Link
-            to="/cards"
+            to="/decks"
             className="text-sm font-semibold text-cyan-200 underline-offset-4 hover:underline focus:ring-2 focus:ring-cyan-300 focus:outline-none"
           >
             Card management

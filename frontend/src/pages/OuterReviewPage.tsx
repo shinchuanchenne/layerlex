@@ -155,7 +155,7 @@ export function OuterReviewPage() {
               created.
             </p>
             <Link
-              to="/cards"
+              to="/decks"
               className="mt-7 inline-flex rounded-full bg-slate-950 px-5 py-3 font-semibold text-white"
             >
               Go to card management
@@ -307,7 +307,9 @@ export function OuterReviewPage() {
                   </span>
                 </button>
                 <Link
-                  to={"/cards/" + currentCard.id}
+                  to={
+                    "/decks/" + currentCard.deck_id + "/cards/" + currentCard.id
+                  }
                   className="text-sm font-semibold text-cyan-800 underline-offset-4 hover:underline focus:ring-2 focus:ring-cyan-600 focus:outline-none"
                 >
                   Edit current card
@@ -333,6 +335,7 @@ export function OuterReviewPage() {
 
             <OuterReviewInnerContent
               key={currentCard.id}
+              deckId={currentCard.deck_id}
               outerCardId={currentCard.id}
               outerCardTerm={currentCard.term}
               automaticallyShow={automaticallyShowInnerContent}

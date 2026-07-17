@@ -7,6 +7,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 import { ApiError } from "../lib/api";
 import {
+  createDeck,
+  deleteDeck,
+  listAllDecks,
+  listDecks,
+  retrieveDeck,
+  updateDeck,
+  type Deck,
+} from "../lib/decks";
+import {
   createInnerCard,
   deleteInnerCard,
   innerCardKeys,
@@ -39,6 +48,19 @@ vi.mock("../lib/outerCards", async (importOriginal) => {
   };
 });
 
+vi.mock("../lib/decks", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/decks")>();
+  return {
+    ...actual,
+    listDecks: vi.fn(),
+    listAllDecks: vi.fn(),
+    retrieveDeck: vi.fn(),
+    createDeck: vi.fn(),
+    updateDeck: vi.fn(),
+    deleteDeck: vi.fn(),
+  };
+});
+
 vi.mock("../lib/innerCards", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/innerCards")>();
   return {
@@ -51,8 +73,18 @@ vi.mock("../lib/innerCards", async (importOriginal) => {
   };
 });
 
+const firstDeck: Deck = {
+  id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  name: "Lesson 13",
+  description: null,
+  sort_order: 13,
+  created_at: "2026-07-14T00:00:00Z",
+  updated_at: "2026-07-14T00:00:00Z",
+};
+
 const firstOuter: OuterCard = {
   id: "11111111-1111-4111-8111-111111111111",
+  deck_id: firstDeck.id,
   term: "経験",
   reading: "けいけん",
   part_of_speech: "名詞",
@@ -120,7 +152,9 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function renderManagement(route = "/cards/" + firstOuter.id) {
+function renderManagement(
+  route = "/decks/" + firstDeck.id + "/cards/" + firstOuter.id,
+) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, staleTime: Infinity },
@@ -138,6 +172,17 @@ function renderManagement(route = "/cards/" + firstOuter.id) {
 }
 
 beforeEach(() => {
+  vi.mocked(listDecks).mockResolvedValue({
+    items: [firstDeck],
+    total: 1,
+    offset: 0,
+    limit: 10,
+  });
+  vi.mocked(listAllDecks).mockResolvedValue([firstDeck]);
+  vi.mocked(retrieveDeck).mockResolvedValue(firstDeck);
+  vi.mocked(createDeck).mockResolvedValue(firstDeck);
+  vi.mocked(updateDeck).mockResolvedValue(firstDeck);
+  vi.mocked(deleteDeck).mockResolvedValue();
   vi.mocked(listOuterCards).mockResolvedValue({
     items: [firstOuter, secondOuter],
     total: 2,
@@ -163,12 +208,12 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
 describe("inner-card directory and parent scope", () => {
   it("does not request inner cards without an outer selection", async () => {
-    renderManagement("/cards");
+    renderManagement("/decks/" + firstDeck.id);
     await screen.findByRole("heading", {
       name: "Select a vocabulary word",
     });
@@ -202,7 +247,14 @@ describe("inner-card directory and parent scope", () => {
   });
 
   it("marks the nested-route inner card as selected", async () => {
-    renderManagement("/cards/" + firstOuter.id + "/inner/" + firstInner.id);
+    renderManagement(
+      "/decks/" +
+        firstDeck.id +
+        "/cards/" +
+        firstOuter.id +
+        "/inner/" +
+        firstInner.id,
+    );
 
     const selected = await screen.findByRole("link", {
       name: /経験を積む/,
@@ -320,7 +372,14 @@ describe("inner-card directory and parent scope", () => {
 
 describe("inner-card nested routing and retrieval", () => {
   it("restores a direct nested selection and renders all fields", async () => {
-    renderManagement("/cards/" + firstOuter.id + "/inner/" + firstInner.id);
+    renderManagement(
+      "/decks/" +
+        firstDeck.id +
+        "/cards/" +
+        firstOuter.id +
+        "/inner/" +
+        firstInner.id,
+    );
 
     expect(
       await screen.findByRole("heading", { name: firstInner.expression }),
@@ -338,7 +397,9 @@ describe("inner-card nested routing and retrieval", () => {
     [new ApiError(422, "Invalid inner card ID"), "Unable to load inner card"],
   ])("shows a clear missing or invalid route state", async (error, heading) => {
     vi.mocked(retrieveInnerCard).mockRejectedValue(error);
-    renderManagement("/cards/" + firstOuter.id + "/inner/invalid");
+    renderManagement(
+      "/decks/" + firstDeck.id + "/cards/" + firstOuter.id + "/inner/invalid",
+    );
 
     expect(
       await screen.findByRole("heading", { name: heading }),
@@ -347,7 +408,14 @@ describe("inner-card nested routing and retrieval", () => {
 
   it("refuses to display an inner card under the wrong outer parent", async () => {
     vi.mocked(retrieveInnerCard).mockResolvedValue(foreignInner);
-    renderManagement("/cards/" + firstOuter.id + "/inner/" + foreignInner.id);
+    renderManagement(
+      "/decks/" +
+        firstDeck.id +
+        "/cards/" +
+        firstOuter.id +
+        "/inner/" +
+        foreignInner.id,
+    );
 
     expect(
       await screen.findByRole("heading", {
@@ -361,7 +429,14 @@ describe("inner-card nested routing and retrieval", () => {
 
   it("clears inner selection when another outer card is selected", async () => {
     const user = userEvent.setup();
-    renderManagement("/cards/" + firstOuter.id + "/inner/" + firstInner.id);
+    renderManagement(
+      "/decks/" +
+        firstDeck.id +
+        "/cards/" +
+        firstOuter.id +
+        "/inner/" +
+        firstInner.id,
+    );
     await screen.findByRole("heading", { name: firstInner.expression });
 
     await user.click(screen.getByRole("link", { name: /予定/ }));
@@ -474,7 +549,14 @@ describe("inner-card create and edit", () => {
 
   it("prepopulates edit and disables a no-op", async () => {
     const user = userEvent.setup();
-    renderManagement("/cards/" + firstOuter.id + "/inner/" + firstInner.id);
+    renderManagement(
+      "/decks/" +
+        firstDeck.id +
+        "/cards/" +
+        firstOuter.id +
+        "/inner/" +
+        firstInner.id,
+    );
     await screen.findByRole("heading", { name: firstInner.expression });
     await user.click(screen.getByRole("button", { name: "Edit inner card" }));
 
@@ -498,7 +580,14 @@ describe("inner-card create and edit", () => {
       usage_note: "正式場合也可使用",
     };
     vi.mocked(updateInnerCard).mockResolvedValue(updated);
-    renderManagement("/cards/" + firstOuter.id + "/inner/" + firstInner.id);
+    renderManagement(
+      "/decks/" +
+        firstDeck.id +
+        "/cards/" +
+        firstOuter.id +
+        "/inner/" +
+        firstInner.id,
+    );
     await screen.findByRole("heading", { name: firstInner.expression });
     await user.click(screen.getByRole("button", { name: "Edit inner card" }));
     const meaning = screen.getByLabelText(/Meaning/);
@@ -528,7 +617,14 @@ describe("inner-card create and edit", () => {
         { loc: ["body", "meaning"], msg: "must not be blank" },
       ]),
     );
-    renderManagement("/cards/" + firstOuter.id + "/inner/" + firstInner.id);
+    renderManagement(
+      "/decks/" +
+        firstDeck.id +
+        "/cards/" +
+        firstOuter.id +
+        "/inner/" +
+        firstInner.id,
+    );
     await screen.findByRole("heading", { name: firstInner.expression });
     await user.click(screen.getByRole("button", { name: "Edit inner card" }));
     await user.type(screen.getByLabelText("Notes"), " changed");
@@ -546,7 +642,14 @@ describe("inner-card deletion and outer regression", () => {
   it("requires confirmation and supports cancellation", async () => {
     const user = userEvent.setup();
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-    renderManagement("/cards/" + firstOuter.id + "/inner/" + firstInner.id);
+    renderManagement(
+      "/decks/" +
+        firstDeck.id +
+        "/cards/" +
+        firstOuter.id +
+        "/inner/" +
+        firstInner.id,
+    );
     await screen.findByRole("heading", { name: firstInner.expression });
 
     await user.click(screen.getByRole("button", { name: "Delete inner card" }));
@@ -565,7 +668,14 @@ describe("inner-card deletion and outer regression", () => {
     const pending = deferred<void>();
     vi.spyOn(window, "confirm").mockReturnValue(true);
     vi.mocked(deleteInnerCard).mockReturnValueOnce(pending.promise);
-    renderManagement("/cards/" + firstOuter.id + "/inner/" + firstInner.id);
+    renderManagement(
+      "/decks/" +
+        firstDeck.id +
+        "/cards/" +
+        firstOuter.id +
+        "/inner/" +
+        firstInner.id,
+    );
     await screen.findByRole("heading", { name: firstInner.expression });
 
     await user.click(screen.getByRole("button", { name: "Delete inner card" }));
@@ -595,7 +705,14 @@ describe("inner-card deletion and outer regression", () => {
     vi.mocked(deleteInnerCard).mockRejectedValue(
       new ApiError(500, "Inner delete failed"),
     );
-    renderManagement("/cards/" + firstOuter.id + "/inner/" + firstInner.id);
+    renderManagement(
+      "/decks/" +
+        firstDeck.id +
+        "/cards/" +
+        firstOuter.id +
+        "/inner/" +
+        firstInner.id,
+    );
     await screen.findByRole("heading", { name: firstInner.expression });
 
     await user.click(screen.getByRole("button", { name: "Delete inner card" }));
@@ -610,7 +727,12 @@ describe("inner-card deletion and outer regression", () => {
     const user = userEvent.setup();
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const { queryClient } = renderManagement(
-      "/cards/" + firstOuter.id + "/inner/" + firstInner.id,
+      "/decks/" +
+        firstDeck.id +
+        "/cards/" +
+        firstOuter.id +
+        "/inner/" +
+        firstInner.id,
     );
     await screen.findByRole("heading", { name: firstInner.expression });
     expect(
@@ -684,7 +806,12 @@ describe("outer-review inner-content cache coherence", () => {
     const updated = { ...firstInner, notes: "Updated note" };
     vi.mocked(updateInnerCard).mockResolvedValue(updated);
     const { queryClient } = renderManagement(
-      "/cards/" + firstOuter.id + "/inner/" + firstInner.id,
+      "/decks/" +
+        firstDeck.id +
+        "/cards/" +
+        firstOuter.id +
+        "/inner/" +
+        firstInner.id,
     );
     seedReviewCaches(queryClient);
     await screen.findByRole("heading", { name: firstInner.expression });
@@ -705,7 +832,12 @@ describe("outer-review inner-content cache coherence", () => {
     const user = userEvent.setup();
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const { queryClient } = renderManagement(
-      "/cards/" + firstOuter.id + "/inner/" + firstInner.id,
+      "/decks/" +
+        firstDeck.id +
+        "/cards/" +
+        firstOuter.id +
+        "/inner/" +
+        firstInner.id,
     );
     seedReviewCaches(queryClient);
     await screen.findByRole("heading", { name: firstInner.expression });
@@ -719,7 +851,9 @@ describe("outer-review inner-content cache coherence", () => {
   it("removes only the deleted outer card's review content", async () => {
     const user = userEvent.setup();
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    const { queryClient } = renderManagement("/cards/" + firstOuter.id);
+    const { queryClient } = renderManagement(
+      "/decks/" + firstDeck.id + "/cards/" + firstOuter.id,
+    );
     seedReviewCaches(queryClient);
     await screen.findByRole("heading", { name: firstOuter.term });
 

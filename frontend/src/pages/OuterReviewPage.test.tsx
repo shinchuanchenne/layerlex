@@ -73,6 +73,7 @@ vi.mock("../lib/reviewShuffle", async (importOriginal) => {
 
 const firstCard: OuterCard = {
   id: "11111111-1111-4111-8111-111111111111",
+  deck_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
   term: "経験",
   reading: "けいけん",
   part_of_speech: "名詞",
@@ -204,7 +205,7 @@ describe("outer review deck states and routing", () => {
     expect(await screen.findByText("Empty deck")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Go to card management" }),
-    ).toHaveAttribute("href", "/cards");
+    ).toHaveAttribute("href", "/decks");
   });
 
   it("shows an API error and retries the complete deck", async () => {
@@ -399,8 +400,9 @@ describe("outer review presentation and navigation", () => {
   it("preserves the existing management route", async () => {
     renderApp("/cards");
 
-    expect(await screen.findByText("No outer cards yet")).toBeInTheDocument();
-    await waitFor(() => expect(listOuterCards).toHaveBeenCalled());
+    expect(
+      await screen.findByRole("heading", { name: "Select or create a deck" }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -479,7 +481,10 @@ describe("manual outer-review inner content", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Add or manage inner cards" }),
-    ).toHaveAttribute("href", "/cards/" + firstCard.id);
+    ).toHaveAttribute(
+      "href",
+      "/decks/" + firstCard.deck_id + "/cards/" + firstCard.id,
+    );
   });
 
   it("collapses for next, previous, and directory card changes", async () => {
@@ -1201,9 +1206,9 @@ describe("outer review keyboard shortcuts", () => {
 
     renderApp("/cards");
     expect(
-      await screen.findByRole("heading", { name: "Select a vocabulary word" }),
+      await screen.findByRole("heading", { name: "Select or create a deck" }),
     ).toBeInTheDocument();
     expect(fireEvent.keyDown(document, { key: "ArrowRight" })).toBe(true);
-    expect(screen.getByLabelText("Current route")).toHaveTextContent("/cards");
+    expect(screen.getByLabelText("Current route")).toHaveTextContent("/decks");
   });
 });

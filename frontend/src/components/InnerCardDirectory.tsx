@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { InnerCard } from "../lib/innerCards";
 
 interface InnerCardDirectoryProps {
+  deckId: string;
   outerCardId: string;
   cards: InnerCard[];
   selectedInnerCardId?: string;
@@ -21,6 +22,7 @@ interface InnerCardDirectoryProps {
 }
 
 export function InnerCardDirectory({
+  deckId,
   outerCardId,
   cards,
   selectedInnerCardId,
@@ -111,7 +113,14 @@ export function InnerCardDirectory({
               return (
                 <li key={card.id}>
                   <Link
-                    to={"/cards/" + outerCardId + "/inner/" + card.id}
+                    to={
+                      "/decks/" +
+                      deckId +
+                      "/cards/" +
+                      outerCardId +
+                      "/inner/" +
+                      card.id
+                    }
                     onClick={onSelect}
                     aria-current={isSelected ? "page" : undefined}
                     className={

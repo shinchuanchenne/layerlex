@@ -17,9 +17,9 @@ export function HomePage() {
         <div className="mt-10 flex flex-wrap items-center gap-4">
           <Link
             className="rounded-full bg-cyan-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-200 focus:ring-2 focus:ring-cyan-200 focus:ring-offset-2 focus:ring-offset-slate-900 focus:outline-none"
-            to="/cards"
+            to="/decks"
           >
-            Manage outer cards
+            Manage decks and cards
           </Link>
           <Link
             className="font-medium text-cyan-200 underline-offset-4 hover:underline"

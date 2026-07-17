@@ -23,6 +23,7 @@ vi.mock("./outerCards", async (importOriginal) => {
 function card(index: number): OuterCard {
   return {
     id: "00000000-0000-4000-8000-" + String(index).padStart(12, "0"),
+    deck_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
     term: "term-" + index,
     reading: null,
     part_of_speech: null,

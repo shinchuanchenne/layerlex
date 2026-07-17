@@ -11,6 +11,7 @@ import {
 
 const card: OuterCard = {
   id: "11111111-1111-4111-8111-111111111111",
+  deck_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
   term: "経験",
   reading: null,
   part_of_speech: null,
@@ -23,6 +24,7 @@ const card: OuterCard = {
 };
 
 const createPayload: OuterCardCreateInput = {
+  deck_id: card.deck_id,
   term: "経験",
   reading: null,
   part_of_speech: null,
@@ -51,6 +53,29 @@ describe("outer-card API client", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/outer-cards?offset=10&limit=20&search=%E7%B5%8C%E9%A8%93",
+      { headers: {} },
+    );
+  });
+
+  it("adds the selected deck filter without changing global list calls", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ items: [card], total: 1, offset: 0, limit: 10 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+
+    await listOuterCards({
+      search: "",
+      offset: 0,
+      limit: 10,
+      deck_id: card.deck_id,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/outer-cards?offset=0&limit=10&deck_id=" + card.deck_id,
       { headers: {} },
     );
   });

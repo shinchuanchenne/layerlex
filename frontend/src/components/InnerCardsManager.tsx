@@ -30,6 +30,7 @@ import { InnerCardForm } from "./InnerCardForm";
 const INNER_PAGE_SIZE = 10;
 
 interface InnerCardsManagerProps {
+  deckId: string;
   outerCardId: string;
   selectedInnerCardId?: string;
 }
@@ -38,6 +39,7 @@ type InnerFormState =
   { mode: "create" } | { mode: "edit"; innerCardId: string } | null;
 
 export function InnerCardsManager({
+  deckId,
   outerCardId,
   selectedInnerCardId,
 }: InnerCardsManagerProps) {
@@ -109,7 +111,14 @@ export function InnerCardsManager({
         queryKey: innerReviewKeys.orderedDeck(),
       });
       setFormState(null);
-      navigate("/cards/" + outerCardId + "/inner/" + createdCard.id);
+      navigate(
+        "/decks/" +
+          deckId +
+          "/cards/" +
+          outerCardId +
+          "/inner/" +
+          createdCard.id,
+      );
     },
   });
 
@@ -173,7 +182,7 @@ export function InnerCardsManager({
         queryKey: innerReviewKeys.orderedDeck(),
       });
       setFormState(null);
-      navigate("/cards/" + outerCardId);
+      navigate("/decks/" + deckId + "/cards/" + outerCardId);
     },
   });
 
@@ -242,6 +251,7 @@ export function InnerCardsManager({
 
       <div className="grid gap-5 xl:grid-cols-[minmax(17rem,0.85fr)_minmax(0,1.5fr)]">
         <InnerCardDirectory
+          deckId={deckId}
           outerCardId={outerCardId}
           cards={visibleCards}
           selectedInnerCardId={selectedInnerCardId}

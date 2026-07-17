@@ -171,7 +171,7 @@ export function InnerReviewPage() {
               an outer card.
             </p>
             <Link
-              to="/cards"
+              to="/decks"
               className="mt-7 inline-flex rounded-full bg-slate-950 px-5 py-3 font-semibold text-white"
             >
               Go to card management
@@ -286,10 +286,14 @@ export function InnerReviewPage() {
                 </div>
                 <Link
                   to={
-                    "/cards/" +
-                    currentCard.outer_card_id +
-                    "/inner/" +
-                    currentCard.id
+                    currentParent
+                      ? "/decks/" +
+                        currentParent.deck_id +
+                        "/cards/" +
+                        currentCard.outer_card_id +
+                        "/inner/" +
+                        currentCard.id
+                      : "/decks"
                   }
                   className="text-sm font-semibold text-violet-800 underline-offset-4 hover:underline focus:ring-2 focus:ring-violet-600 focus:outline-none"
                 >

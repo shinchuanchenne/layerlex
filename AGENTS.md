@@ -21,8 +21,9 @@ preference. Stage 7A adds the global ordered inner-card collection API, and Stag
 adds independent ordered inner-card review. Stage 8A adds seeded, URL-restorable outer
 review shuffle, and Stage 8B applies the same complete-round model to inner review.
 Stage 9 adds guarded ArrowLeft, ArrowRight, and Space shortcuts to both review pages.
-Stage 11A adds persistent decks, assigns every outer card to exactly one deck, and keeps
-deck frontend management and deck-scoped review outside that backend-only iteration.
+Stage 11A adds persistent decks and assigns every outer card to exactly one deck.
+Stage 11B makes `/decks` the single deck-aware management workspace; deck-scoped review
+remains outside that frontend-management iteration.
 Keep future changes narrowly aligned with the requested iteration.
 
 ## Architecture conventions
@@ -33,13 +34,27 @@ Keep future changes narrowly aligned with the requested iteration.
   local UI state; do not introduce a global state library without a demonstrated need.
 - Keep route-level UI in `frontend/src/pages/`, shared UI in `frontend/src/components/`,
   and API access in `frontend/src/lib/`.
-- Outer-card management lives at `/cards` and `/cards/{outerCardId}`. Keep the selected
-  outer card in the URL; use React Router for navigation and TanStack Query for server
-  state rather than duplicating either in global state.
-- Inner-card selection lives at `/cards/{outerCardId}/inner/{innerCardId}`. Inner lists
-  must be scoped by outer-card ID in both the request and query key. Never request inner
-  cards without a selected outer card, and never display an inner detail whose returned
+- Deck-aware management lives at `/decks`, `/decks/{deckId}`,
+  `/decks/{deckId}/cards/{outerCardId}`, and
+  `/decks/{deckId}/cards/{outerCardId}/inner/{innerCardId}`. The URL owns deck, outer,
+  and inner selection. Legacy `/cards` routes redirect to `/decks`; do not maintain a
+  second conflicting global management workspace.
+- Preserve backend deck ordering in the directory. Deck query keys own paginated lists
+  and details, while outer-card list keys include the optional `deck_id` scope along
+  with search and pagination. Never display an outer card whose returned `deck_id`
+  differs from the route deck.
+- Creating an outer card takes `deck_id` from the selected route and never asks for a
+  raw UUID. Editing uses a named deck selector and sends `deck_id` only when changed.
+  Moving a card navigates to its destination deck, refreshes source and destination
+  lists, and preserves inner-card caches because the outer-card ID is unchanged.
+- Inner-card selection lives under the deck-aware nested route. Inner lists remain
+  scoped by outer-card ID in both the request and query key. Never request inner cards
+  without a selected outer card, and never display an inner detail whose returned
   `outer_card_id` differs from the route parent.
+- Key the management workspace by deck ID so changing decks resets outer search,
+  pagination, forms, outer selection, and inner selection. Deck deletion is confirmed;
+  only empty decks may be deleted, and HTTP 409 must explain that cards need moving or
+  deleting without clearing the current selection.
 - Key parent-scoped inner management state by outer-card ID so changing parents resets
   inner search, pagination, forms, and selection. Deleting an outer card must remove its
   inner list caches and any loaded inner details belonging to it.

@@ -7,12 +7,14 @@ import { fetchCompleteOuterReviewInnerContent } from "../lib/outerReview";
 import { outerReviewKeys } from "../lib/outerReviewKeys";
 
 interface OuterReviewInnerContentProps {
+  deckId: string;
   outerCardId: string;
   outerCardTerm: string;
   automaticallyShow: boolean;
 }
 
 export function OuterReviewInnerContent({
+  deckId,
   outerCardId,
   outerCardTerm,
   automaticallyShow,
@@ -71,7 +73,7 @@ export function OuterReviewInnerContent({
               </h2>
             </div>
             <Link
-              to={"/cards/" + outerCardId}
+              to={"/decks/" + deckId + "/cards/" + outerCardId}
               className="text-sm font-semibold text-cyan-800 underline-offset-4 hover:underline focus:ring-2 focus:ring-cyan-600 focus:outline-none"
             >
               Manage inner cards
@@ -107,7 +109,7 @@ export function OuterReviewInnerContent({
                 examples.
               </p>
               <Link
-                to={"/cards/" + outerCardId}
+                to={"/decks/" + deckId + "/cards/" + outerCardId}
                 className="mt-5 inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white focus:ring-2 focus:ring-cyan-600 focus:ring-offset-2 focus:outline-none"
               >
                 Add or manage inner cards

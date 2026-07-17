@@ -2,6 +2,7 @@ import { requestApi } from "./api";
 
 export interface OuterCard {
   id: string;
+  deck_id: string;
   term: string;
   reading: string | null;
   part_of_speech: string | null;
@@ -14,6 +15,7 @@ export interface OuterCard {
 }
 
 export interface OuterCardCreateInput {
+  deck_id: string;
   term: string;
   reading: string | null;
   part_of_speech: string | null;
@@ -29,6 +31,7 @@ export interface OuterCardListParams {
   search: string;
   offset: number;
   limit: number;
+  deck_id?: string;
 }
 
 export interface OuterCardListResponse {
@@ -41,8 +44,19 @@ export interface OuterCardListResponse {
 export const outerCardKeys = {
   all: ["outer-cards"] as const,
   lists: () => [...outerCardKeys.all, "list"] as const,
+  listScope: (deckId?: string) =>
+    [...outerCardKeys.lists(), deckId ?? "all"] as const,
+  deckLists: (deckId: string) => outerCardKeys.listScope(deckId),
+  globalLists: () => outerCardKeys.listScope(),
   list: (params: OuterCardListParams) =>
-    [...outerCardKeys.lists(), params] as const,
+    [
+      ...outerCardKeys.listScope(params.deck_id),
+      {
+        search: params.search,
+        offset: params.offset,
+        limit: params.limit,
+      },
+    ] as const,
   details: () => [...outerCardKeys.all, "detail"] as const,
   detail: (outerCardId: string) =>
     [...outerCardKeys.details(), outerCardId] as const,
@@ -57,6 +71,9 @@ export function listOuterCards(
   });
   if (params.search) {
     searchParams.set("search", params.search);
+  }
+  if (params.deck_id) {
+    searchParams.set("deck_id", params.deck_id);
   }
   return requestApi<OuterCardListResponse>(
     "/api/v1/outer-cards?" + searchParams.toString(),

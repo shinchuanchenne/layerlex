@@ -34,8 +34,8 @@ describe("LayerLex application", () => {
       screen.getByRole("link", { name: "Check application health" }),
     ).toHaveAttribute("href", "/health");
     expect(
-      screen.getByRole("link", { name: "Manage outer cards" }),
-    ).toHaveAttribute("href", "/cards");
+      screen.getByRole("link", { name: "Manage decks and cards" }),
+    ).toHaveAttribute("href", "/decks");
   });
 
   it("shows a successful API health result", async () => {

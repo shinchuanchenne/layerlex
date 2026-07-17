@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 
+import type { Deck } from "../lib/decks";
 import type {
   OuterCard,
   OuterCardCreateInput,
@@ -9,6 +10,11 @@ import type {
 interface OuterCardFormProps {
   mode: "create" | "edit";
   card?: OuterCard;
+  decks: Deck[];
+  selectedDeckId: string;
+  decksLoading?: boolean;
+  decksError?: string;
+  onRetryDecks?: () => void;
   isPending: boolean;
   serverError?: string;
   onCancel: () => void;
@@ -16,6 +22,7 @@ interface OuterCardFormProps {
 }
 
 interface FormState {
+  deckId: string;
   term: string;
   reading: string;
   partOfSpeech: string;
@@ -25,8 +32,12 @@ interface FormState {
   sortOrder: string;
 }
 
-function createInitialState(card?: OuterCard): FormState {
+function createInitialState(
+  selectedDeckId: string,
+  card?: OuterCard,
+): FormState {
   return {
+    deckId: card?.deck_id ?? selectedDeckId,
     term: card?.term ?? "",
     reading: card?.reading ?? "",
     partOfSpeech: card?.part_of_speech ?? "",
@@ -44,6 +55,7 @@ function optionalValue(value: string): string | null {
 
 function normaliseState(state: FormState): OuterCardCreateInput {
   return {
+    deck_id: state.deckId,
     term: state.term.trim(),
     reading: optionalValue(state.reading),
     part_of_speech: optionalValue(state.partOfSpeech),
@@ -59,6 +71,7 @@ function hasCardChanges(
   card: OuterCard,
 ): boolean {
   return (
+    payload.deck_id !== card.deck_id ||
     payload.term !== card.term ||
     payload.reading !== card.reading ||
     payload.part_of_speech !== card.part_of_speech ||
@@ -74,6 +87,7 @@ function changedFields(
   card: OuterCard,
 ): OuterCardUpdateInput {
   const updates: OuterCardUpdateInput = {};
+  if (payload.deck_id !== card.deck_id) updates.deck_id = payload.deck_id;
   if (payload.term !== card.term) updates.term = payload.term;
   if (payload.reading !== card.reading) updates.reading = payload.reading;
   if (payload.part_of_speech !== card.part_of_speech) {
@@ -93,12 +107,19 @@ function changedFields(
 export function OuterCardForm({
   mode,
   card,
+  decks,
+  selectedDeckId,
+  decksLoading = false,
+  decksError,
+  onRetryDecks,
   isPending,
   serverError,
   onCancel,
   onSubmit,
 }: OuterCardFormProps) {
-  const [state, setState] = useState<FormState>(() => createInitialState(card));
+  const [state, setState] = useState<FormState>(() =>
+    createInitialState(selectedDeckId, card),
+  );
   const [clientError, setClientError] = useState<string>();
   const normalised = useMemo(() => normaliseState(state), [state]);
   const isNoOp =
@@ -111,6 +132,10 @@ export function OuterCardForm({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!normalised.deck_id) {
+      setClientError("A deck is required.");
+      return;
+    }
     if (!normalised.term || !normalised.meaning) {
       setClientError("Term and meaning are required.");
       return;
@@ -147,6 +172,57 @@ export function OuterCardForm({
       </p>
 
       <form className="mt-8 grid gap-6 sm:grid-cols-2" onSubmit={handleSubmit}>
+        {mode === "create" ? (
+          <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-4 sm:col-span-2">
+            <p className="text-sm font-semibold text-cyan-950">Deck</p>
+            <p className="mt-1 break-words text-cyan-900">
+              {decks.find((deck) => deck.id === selectedDeckId)?.name ??
+                "Selected deck"}
+            </p>
+          </div>
+        ) : (
+          <label className="block text-sm font-semibold text-slate-700 sm:col-span-2">
+            Deck <span className="text-rose-700">(required)</span>
+            <select
+              name="deck_id"
+              value={state.deckId}
+              onChange={(event) => setField("deckId", event.target.value)}
+              disabled={decksLoading || Boolean(decksError)}
+              className={inputClass}
+            >
+              {decks.map((deck) => (
+                <option key={deck.id} value={deck.id}>
+                  {deck.name}
+                </option>
+              ))}
+            </select>
+            <span className="mt-2 block text-xs leading-5 font-normal text-slate-500">
+              Moving this card keeps all of its inner cards attached.
+            </span>
+          </label>
+        )}
+        {mode === "edit" && decksLoading ? (
+          <p role="status" className="text-sm text-slate-500 sm:col-span-2">
+            Loading available decks…
+          </p>
+        ) : null}
+        {mode === "edit" && decksError ? (
+          <div
+            role="alert"
+            className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 sm:col-span-2"
+          >
+            <p>{decksError}</p>
+            {onRetryDecks ? (
+              <button
+                type="button"
+                onClick={onRetryDecks}
+                className="mt-2 font-semibold underline underline-offset-4"
+              >
+                Retry available decks
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <label className="block text-sm font-semibold text-slate-700">
           Term <span className="text-rose-700">(required)</span>
           <input
@@ -228,7 +304,11 @@ export function OuterCardForm({
         <div className="flex flex-wrap gap-3 border-t border-slate-200 pt-6 sm:col-span-2">
           <button
             type="submit"
-            disabled={isPending || isNoOp}
+            disabled={
+              isPending ||
+              isNoOp ||
+              (mode === "edit" && (decksLoading || Boolean(decksError)))
+            }
             className="rounded-full bg-slate-950 px-6 py-3 font-semibold text-white hover:bg-slate-800 focus:ring-2 focus:ring-cyan-600 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isPending
