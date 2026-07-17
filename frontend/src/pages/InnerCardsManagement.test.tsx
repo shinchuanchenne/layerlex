@@ -82,6 +82,8 @@ const firstDeck: Deck = {
   updated_at: "2026-07-14T00:00:00Z",
 };
 
+const unrelatedDeckId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+
 const firstOuter: OuterCard = {
   id: "11111111-1111-4111-8111-111111111111",
   deck_id: firstDeck.id,
@@ -770,6 +772,13 @@ describe("outer-review inner-content cache coherence", () => {
       firstInner,
       foreignInner,
     ]);
+    queryClient.setQueryData(innerReviewKeys.deckOrderedDeck(firstDeck.id), [
+      firstInner,
+      siblingInner,
+    ]);
+    queryClient.setQueryData(innerReviewKeys.deckOrderedDeck(unrelatedDeckId), [
+      foreignInner,
+    ]);
   }
 
   function expectOnlyFirstParentInvalidated(queryClient: QueryClient) {
@@ -784,6 +793,15 @@ describe("outer-review inner-content cache coherence", () => {
     expect(
       queryClient.getQueryState(innerReviewKeys.orderedDeck())?.isInvalidated,
     ).toBe(true);
+    expect(
+      queryClient.getQueryState(innerReviewKeys.deckOrderedDeck(firstDeck.id))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(
+        innerReviewKeys.deckOrderedDeck(unrelatedDeckId),
+      )?.isInvalidated,
+    ).toBe(false);
   }
 
   it("invalidates only the created inner card's parent review content", async () => {
@@ -869,5 +887,14 @@ describe("outer-review inner-content cache coherence", () => {
     expect(
       queryClient.getQueryData(innerReviewKeys.orderedDeck()),
     ).toBeUndefined();
+    expect(
+      queryClient.getQueryState(innerReviewKeys.deckOrderedDeck(firstDeck.id))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(
+        innerReviewKeys.deckOrderedDeck(unrelatedDeckId),
+      )?.isInvalidated,
+    ).toBe(false);
   });
 });

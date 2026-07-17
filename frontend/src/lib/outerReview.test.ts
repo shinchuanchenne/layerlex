@@ -56,6 +56,21 @@ beforeEach(() => {
 });
 
 describe("complete ordered outer review deck", () => {
+  it("keeps global and deck-scoped review query keys separate", () => {
+    expect(outerReviewKeys.deckOrderedDeck("deck-1")).toEqual([
+      "outer-review",
+      "deck",
+      "deck-1",
+      "ordered-deck",
+    ]);
+    expect(outerReviewKeys.deckOrderedDeck("deck-1")).not.toEqual(
+      outerReviewKeys.orderedDeck(),
+    );
+    expect(outerReviewKeys.deckOrderedDeck("deck-2")).not.toEqual(
+      outerReviewKeys.deckOrderedDeck("deck-1"),
+    );
+  });
+
   it("returns an empty deck from an empty first page", async () => {
     vi.mocked(listOuterCards).mockResolvedValue({
       items: [],
@@ -110,6 +125,61 @@ describe("complete ordered outer review deck", () => {
       offset: 400,
       limit: 200,
     });
+  });
+
+  it("loads every scoped page with the selected deck ID", async () => {
+    const deckId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const allCards = Array.from({ length: 201 }, (_, index) => card(index));
+    vi.mocked(listOuterCards).mockImplementation(async (params) => ({
+      items: allCards.slice(params.offset, params.offset + params.limit),
+      total: allCards.length,
+      offset: params.offset,
+      limit: params.limit,
+    }));
+
+    await expect(fetchCompleteOuterReviewDeck(deckId)).resolves.toHaveLength(
+      201,
+    );
+    expect(listOuterCards).toHaveBeenNthCalledWith(1, {
+      search: "",
+      offset: 0,
+      limit: 200,
+      deck_id: deckId,
+    });
+    expect(listOuterCards).toHaveBeenNthCalledWith(2, {
+      search: "",
+      offset: 200,
+      limit: 200,
+      deck_id: deckId,
+    });
+  });
+
+  it("rejects duplicate outer cards", async () => {
+    const duplicate = card(1);
+    vi.mocked(listOuterCards).mockResolvedValue({
+      items: [duplicate, duplicate],
+      total: 2,
+      offset: 0,
+      limit: OUTER_REVIEW_PAGE_SIZE,
+    });
+
+    await expect(fetchCompleteOuterReviewDeck()).rejects.toThrow(
+      "returned a duplicate card",
+    );
+  });
+
+  it("rejects a card returned under the wrong scoped deck", async () => {
+    const selectedDeckId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    vi.mocked(listOuterCards).mockResolvedValue({
+      items: [card(1)],
+      total: 1,
+      offset: 0,
+      limit: OUTER_REVIEW_PAGE_SIZE,
+    });
+
+    await expect(fetchCompleteOuterReviewDeck(selectedDeckId)).rejects.toThrow(
+      "returned a card from another deck",
+    );
   });
 
   it("fails clearly if pagination stops before total is reached", async () => {

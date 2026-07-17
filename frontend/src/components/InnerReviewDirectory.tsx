@@ -7,6 +7,10 @@ interface InnerReviewDirectoryProps {
   cards: InnerCard[];
   currentCardId?: string;
   parentsById: ReadonlyMap<string, OuterCard>;
+  reviewBasePath?: string;
+  managementPath?: string;
+  outerReviewPath?: string;
+  deckName?: string;
   isShuffled: boolean;
   roundQuery: string;
   isLoading: boolean;
@@ -18,6 +22,10 @@ export function InnerReviewDirectory({
   cards,
   currentCardId,
   parentsById,
+  reviewBasePath = "/review/inner",
+  managementPath = "/decks",
+  outerReviewPath = "/review/outer",
+  deckName,
   isShuffled,
   roundQuery,
   isLoading,
@@ -34,21 +42,24 @@ export function InnerReviewDirectory({
           Inner review
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">LayerLex</h1>
+        <p className="mt-2 text-sm font-semibold break-words text-slate-300">
+          {deckName ? `Review this deck: ${deckName}` : "Global review"}
+        </p>
         <nav
           aria-label="Inner review links"
           className="mt-5 flex flex-wrap gap-4"
         >
           <Link
-            to="/decks"
+            to={managementPath}
             className="text-sm font-semibold text-violet-200 underline-offset-4 hover:underline focus:ring-2 focus:ring-violet-300 focus:outline-none"
           >
             Card management
           </Link>
           <Link
-            to="/review/outer"
+            to={outerReviewPath}
             className="text-sm font-semibold text-violet-200 underline-offset-4 hover:underline focus:ring-2 focus:ring-violet-300 focus:outline-none"
           >
-            Outer review
+            {deckName ? "Outer review for this deck" : "Outer review"}
           </Link>
         </nav>
       </header>
@@ -95,7 +106,7 @@ export function InnerReviewDirectory({
               return (
                 <li key={card.id}>
                   <Link
-                    to={"/review/inner/" + card.id + roundQuery}
+                    to={reviewBasePath + "/" + card.id + roundQuery}
                     aria-current={isCurrent ? "page" : undefined}
                     className={
                       "block rounded-xl border p-3 transition focus:ring-2 focus:ring-violet-300 focus:outline-none " +

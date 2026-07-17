@@ -338,7 +338,8 @@ deleted.
 TanStack Query keeps deck details and directories separate from deck-scoped outer-card
 lists. Moving a card refreshes both source and destination lists while retaining its
 inner-card caches. Existing outer and inner review source-deck invalidation still
-applies. Review remains global until Stage 11C adds deck-scoped review.
+applies. The selected deck workspace also links directly to that deck's outer- and
+inner-card review routes.
 
 During local development, browser requests to `/api` are proxied by Vite to
 `http://localhost:8000`. Leave `VITE_API_BASE_URL` blank to use this proxy. Set it to
@@ -534,6 +535,52 @@ cd frontend
 npm run test -- src/lib/innerReview.test.ts
 npm run test -- src/pages/InnerReviewPage.test.tsx
 ```
+
+## Deck-scoped review
+
+The existing global review routes remain available. To review only one selected deck,
+use the deck management entry points **Review outer cards** and **Review inner cards**:
+
+```text
+/review/decks/{deckId}/outer
+/review/decks/{deckId}/outer/{outerCardId}
+/review/decks/{deckId}/inner
+/review/decks/{deckId}/inner/{innerCardId}
+```
+
+Both layers retain Ordered, Shuffle, New shuffled round, Flip, Show both, directory
+selection, non-wrapping Previous/Next, progress, and guarded keyboard shortcuts.
+Shuffle uses the same optional `?mode=shuffle&seed={unsigned32BitSeed}` URL state as
+global review. The deck ID, selected card, mode, and seed are therefore restored by
+refresh, browser history, direct navigation, and shared links. The review header and
+directory identify the selected deck, while management links return to its nested
+`/decks/{deckId}` workspace.
+
+Deck-scoped outer review fetches every page of
+`GET /api/v1/outer-cards?deck_id={deckId}` through the reported `total`. It preserves
+backend order, rejects duplicate IDs and wrong-deck responses, and derives shuffled
+queues only from that complete source and the URL seed. Manual and automatic inner
+content keep the existing browser preference and load only the current outer card's
+usage layer.
+
+The global inner-card API does not accept a deck filter. Deck-scoped inner review
+therefore loads the complete selected-deck outer source once, builds an outer-card ID
+map, loads the complete global inner source once, and retains only inner cards whose
+parent ID belongs to the selected deck. This avoids one inner request per outer card,
+preserves the global backend order among retained cards, and reuses the same parent map
+for context. A card routed under the wrong deck is never displayed; the recovery state
+links to the selected deck and, when discoverable, the card's actual deck.
+
+Global and deck-scoped server sources use separate TanStack Query keys. Outer-card
+create, update, move, and delete refresh the affected outer and inner deck scopes;
+moving a card refreshes both source and destination scopes. Inner-card mutations refresh
+only the parent card's deck-scoped inner source in addition to the existing global
+source. Successful deck deletion removes only that deck's review caches, while a failed
+non-empty deletion preserves them. Shuffled permutations remain derived data and are
+never stored as server cache or browser preferences.
+
+Multiple-deck review, ratings, spaced repetition, review history, authentication, and
+audio playback are outside this stage.
 
 ### Review keyboard shortcuts
 

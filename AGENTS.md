@@ -22,8 +22,8 @@ adds independent ordered inner-card review. Stage 8A adds seeded, URL-restorable
 review shuffle, and Stage 8B applies the same complete-round model to inner review.
 Stage 9 adds guarded ArrowLeft, ArrowRight, and Space shortcuts to both review pages.
 Stage 11A adds persistent decks and assigns every outer card to exactly one deck.
-Stage 11B makes `/decks` the single deck-aware management workspace; deck-scoped review
-remains outside that frontend-management iteration.
+Stage 11B makes `/decks` the single deck-aware management workspace. Stage 11C adds
+deck-scoped outer and inner review while preserving both global review modes.
 Keep future changes narrowly aligned with the requested iteration.
 
 ## Architecture conventions
@@ -68,6 +68,11 @@ Keep future changes narrowly aligned with the requested iteration.
   through the reported `total`; never silently treat one API page as the complete deck.
   Preserve the backend order as the ordered mode and only derive shuffled queues through
   the Stage 8A deterministic utility.
+- Deck-scoped outer review lives at `/review/decks/{deckId}/outer` and
+  `/review/decks/{deckId}/outer/{outerCardId}`. Its dedicated query key includes the
+  deck ID, and its complete source passes `deck_id` on every outer-card list page.
+  Reject duplicate IDs and wrong-deck responses. Do not let scoped and global caches
+  collide or display a routed card under the wrong deck.
 - Outer shuffled rounds use `?mode=shuffle&seed={seed}`. The URL owns mode and seed;
   TanStack Query continues to own only the complete backend-ordered deck. Derive one
   complete deterministic Fisher–Yates permutation from that deck and seed without
@@ -110,6 +115,12 @@ Keep future changes narrowly aligned with the requested iteration.
 - Resolve inner-review parent context by reusing the complete outer-review deck and an
   in-memory outer-card ID map. Never request one outer card per inner card. Missing or
   failed parent context must not block the inner deck and must use a safe fallback.
+- Deck-scoped inner review lives at `/review/decks/{deckId}/inner` and
+  `/review/decks/{deckId}/inner/{innerCardId}`. Load the complete selected-deck outer
+  source and complete global inner source once, then retain inner cards whose
+  `outer_card_id` exists in the selected-deck parent map. Preserve global backend inner
+  order among retained cards; never issue one inner request per outer card or add
+  `deck_id` to inner-card data.
 - Keep the ordered inner-review deck under a dedicated `inner-review` query key.
   Inner-card create, update, and delete mutations invalidate it; deleting an outer card
   removes it because cascade deletion changes the global collection. Preserve existing
@@ -118,6 +129,15 @@ Keep future changes narrowly aligned with the requested iteration.
   deterministic Fisher–Yates utility. React Router owns mode and seed, while TanStack
   Query owns only the complete backend-ordered inner source deck. Never duplicate the
   PRNG, mutate the source deck, or cache the derived permutation as server data.
+- Deck-scoped ordered and shuffled rounds use the same URL seed, deterministic queue,
+  non-wrapping navigation, display modes, keyboard guards, and outer automatic-inner
+  preference as global review. The URL owns deck, selected card, mode, and seed;
+  TanStack Query owns only the global or deck-scoped ordered source.
+- Outer-card membership mutations invalidate affected deck-scoped outer and inner
+  review sources; a move invalidates both source and destination deck scopes.
+  Inner-card mutations invalidate only their parent deck's scoped inner source in
+  addition to existing global and parent-scoped caches. Successful deck deletion
+  removes only that deck's review caches; failed deletion preserves them.
 - Inner-review directory links, Previous, and Next must preserve the active seed and
   use the same derived queue as progress. Selecting Shuffle during a shuffled round
   keeps it; New shuffled round generates a different seed and begins at position one;

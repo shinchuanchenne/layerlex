@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../App";
 import { ApiError } from "../lib/api";
+import { retrieveDeck, type Deck } from "../lib/decks";
 import {
   listInnerCards,
   retrieveInnerCard,
@@ -19,6 +20,7 @@ import {
 } from "../lib/innerCards";
 import {
   listOuterCards,
+  retrieveOuterCard,
   type OuterCard,
   type OuterCardListResponse,
 } from "../lib/outerCards";
@@ -40,6 +42,11 @@ vi.mock("../lib/outerReview", async (importOriginal) => {
     fetchCompleteOuterReviewDeck: vi.fn(),
     fetchCompleteOuterReviewInnerContent: vi.fn(),
   };
+});
+
+vi.mock("../lib/decks", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/decks")>();
+  return { ...actual, retrieveDeck: vi.fn() };
 });
 
 vi.mock("../lib/outerCards", async (importOriginal) => {
@@ -108,6 +115,15 @@ const thirdCard: OuterCard = {
 
 const deck = [firstCard, secondCard, thirdCard];
 
+const selectedDeck: Deck = {
+  id: firstCard.deck_id,
+  name: "Lesson 13",
+  description: "Chapter vocabulary",
+  sort_order: 13,
+  created_at: "2026-07-14T00:00:00Z",
+  updated_at: "2026-07-14T00:00:00Z",
+};
+
 const fullInnerCard: InnerCard = {
   id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   outer_card_id: firstCard.id,
@@ -170,6 +186,8 @@ function renderApp(route = "/review/outer") {
 
 beforeEach(() => {
   window.localStorage.clear();
+  vi.mocked(retrieveDeck).mockResolvedValue(selectedDeck);
+  vi.mocked(retrieveOuterCard).mockResolvedValue(firstCard);
   vi.mocked(fetchCompleteOuterReviewDeck).mockResolvedValue(deck);
   vi.mocked(fetchCompleteOuterReviewInnerContent).mockResolvedValue([
     fullInnerCard,
@@ -237,6 +255,102 @@ describe("outer review deck states and routing", () => {
     expect(screen.getByRole("link", { name: /経験/ })).toHaveAttribute(
       "aria-current",
       "page",
+    );
+  });
+
+  it("loads and restores a deck-scoped outer review", async () => {
+    renderApp("/review/decks/" + selectedDeck.id + "/outer");
+
+    expect(await screen.findByLabelText("Review progress")).toHaveTextContent(
+      "1 / 3",
+    );
+    expect(fetchCompleteOuterReviewDeck).toHaveBeenCalledWith(selectedDeck.id);
+    expect(screen.getAllByText(/Lesson 13/).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/review/decks/" + selectedDeck.id + "/outer/" + firstCard.id,
+    );
+    expect(
+      screen.getByRole("link", { name: "Edit current card" }),
+    ).toHaveAttribute(
+      "href",
+      "/decks/" + selectedDeck.id + "/cards/" + firstCard.id,
+    );
+    expect(
+      screen.getByRole("link", { name: "Inner review for this deck" }),
+    ).toHaveAttribute("href", "/review/decks/" + selectedDeck.id + "/inner");
+  });
+
+  it("shows and retries a selected-deck API failure before loading cards", async () => {
+    const user = userEvent.setup();
+    vi.mocked(retrieveDeck)
+      .mockRejectedValueOnce(new ApiError(404, "Deck not found"))
+      .mockResolvedValueOnce(selectedDeck);
+    renderApp("/review/decks/" + selectedDeck.id + "/outer");
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Selected deck unavailable",
+      }),
+    ).toBeInTheDocument();
+    expect(fetchCompleteOuterReviewDeck).not.toHaveBeenCalled();
+    await user.click(
+      screen.getByRole("button", { name: "Retry outer review deck" }),
+    );
+
+    expect(await screen.findByLabelText("Review progress")).toHaveTextContent(
+      "1 / 3",
+    );
+    expect(fetchCompleteOuterReviewDeck).toHaveBeenCalledWith(selectedDeck.id);
+  });
+
+  it("preserves a deck-scoped shuffle seed through keyboard navigation", async () => {
+    const seed = 123;
+    const shuffled = deterministicShuffle(deck, seed);
+    renderApp(
+      "/review/decks/" +
+        selectedDeck.id +
+        "/outer/" +
+        shuffled[0].id +
+        "?mode=shuffle&seed=" +
+        seed,
+    );
+    await screen.findByLabelText("Review progress");
+
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Current route")).toHaveTextContent(
+        "/review/decks/" +
+          selectedDeck.id +
+          "/outer/" +
+          shuffled[1].id +
+          "?mode=shuffle&seed=" +
+          seed,
+      ),
+    );
+    expect(screen.getByLabelText("Review progress")).toHaveTextContent("2 / 3");
+  });
+
+  it("does not display an outer card from another deck", async () => {
+    const foreignDeckId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const foreignCard = {
+      ...firstCard,
+      id: "99999999-9999-4999-8999-999999999999",
+      deck_id: foreignDeckId,
+    };
+    vi.mocked(retrieveOuterCard).mockResolvedValue(foreignCard);
+    renderApp("/review/decks/" + selectedDeck.id + "/outer/" + foreignCard.id);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Card belongs to another deck",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Open card in its actual deck" }),
+    ).toHaveAttribute(
+      "href",
+      "/review/decks/" + foreignDeckId + "/outer/" + foreignCard.id,
     );
   });
 

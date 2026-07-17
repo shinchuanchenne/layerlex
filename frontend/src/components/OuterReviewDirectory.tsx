@@ -5,6 +5,10 @@ import type { OuterCard } from "../lib/outerCards";
 interface OuterReviewDirectoryProps {
   cards: OuterCard[];
   currentCardId?: string;
+  reviewBasePath?: string;
+  managementPath?: string;
+  innerReviewPath?: string;
+  deckName?: string;
   isShuffled: boolean;
   roundQuery: string;
   isLoading: boolean;
@@ -15,6 +19,10 @@ interface OuterReviewDirectoryProps {
 export function OuterReviewDirectory({
   cards,
   currentCardId,
+  reviewBasePath = "/review/outer",
+  managementPath = "/decks",
+  innerReviewPath = "/review/inner",
+  deckName,
   isShuffled,
   roundQuery,
   isLoading,
@@ -31,21 +39,24 @@ export function OuterReviewDirectory({
           {isShuffled ? "Shuffled outer review" : "Ordered outer review"}
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">LayerLex</h1>
+        <p className="mt-2 text-sm font-semibold break-words text-slate-300">
+          {deckName ? `Review this deck: ${deckName}` : "Global review"}
+        </p>
         <nav
           aria-label="Outer review links"
           className="mt-5 flex flex-wrap gap-4"
         >
           <Link
-            to="/decks"
+            to={managementPath}
             className="text-sm font-semibold text-cyan-200 underline-offset-4 hover:underline focus:ring-2 focus:ring-cyan-300 focus:outline-none"
           >
             Card management
           </Link>
           <Link
-            to="/review/inner"
+            to={innerReviewPath}
             className="text-sm font-semibold text-cyan-200 underline-offset-4 hover:underline focus:ring-2 focus:ring-cyan-300 focus:outline-none"
           >
-            Inner review
+            {deckName ? "Inner review for this deck" : "Inner review"}
           </Link>
         </nav>
       </header>
@@ -90,7 +101,7 @@ export function OuterReviewDirectory({
               return (
                 <li key={card.id}>
                   <Link
-                    to={"/review/outer/" + card.id + roundQuery}
+                    to={reviewBasePath + "/" + card.id + roundQuery}
                     aria-current={isCurrent ? "page" : undefined}
                     className={
                       "block rounded-xl border p-3 transition focus:ring-2 focus:ring-cyan-300 focus:outline-none " +

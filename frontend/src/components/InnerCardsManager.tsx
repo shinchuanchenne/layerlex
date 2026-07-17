@@ -110,6 +110,9 @@ export function InnerCardsManager({
       void queryClient.invalidateQueries({
         queryKey: innerReviewKeys.orderedDeck(),
       });
+      void queryClient.invalidateQueries({
+        queryKey: innerReviewKeys.deckOrderedDeck(deckId),
+      });
       setFormState(null);
       navigate(
         "/decks/" +
@@ -144,6 +147,9 @@ export function InnerCardsManager({
       });
       void queryClient.invalidateQueries({
         queryKey: innerReviewKeys.orderedDeck(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: innerReviewKeys.deckOrderedDeck(deckId),
       });
       setFormState(null);
     },
@@ -180,6 +186,9 @@ export function InnerCardsManager({
       });
       void queryClient.invalidateQueries({
         queryKey: innerReviewKeys.orderedDeck(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: innerReviewKeys.deckOrderedDeck(deckId),
       });
       setFormState(null);
       navigate("/decks/" + deckId + "/cards/" + outerCardId);

@@ -12,8 +12,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../App";
 import { ApiError } from "../lib/api";
-import type { InnerCard } from "../lib/innerCards";
-import { fetchCompleteInnerReviewDeck } from "../lib/innerReview";
+import { retrieveDeck, type Deck } from "../lib/decks";
+import { retrieveInnerCard, type InnerCard } from "../lib/innerCards";
+import {
+  fetchCompleteDeckScopedInnerReviewDeck,
+  fetchCompleteInnerReviewDeck,
+} from "../lib/innerReview";
 import { innerReviewKeys } from "../lib/innerReviewKeys";
 import {
   listOuterCards,
@@ -28,7 +32,21 @@ import {
 
 vi.mock("../lib/innerReview", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/innerReview")>();
-  return { ...actual, fetchCompleteInnerReviewDeck: vi.fn() };
+  return {
+    ...actual,
+    fetchCompleteInnerReviewDeck: vi.fn(),
+    fetchCompleteDeckScopedInnerReviewDeck: vi.fn(),
+  };
+});
+
+vi.mock("../lib/decks", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/decks")>();
+  return { ...actual, retrieveDeck: vi.fn() };
+});
+
+vi.mock("../lib/innerCards", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/innerCards")>();
+  return { ...actual, retrieveInnerCard: vi.fn() };
 });
 
 vi.mock("../lib/outerReview", async (importOriginal) => {
@@ -113,6 +131,15 @@ const missingParentInner: InnerCard = {
 const innerDeck = [firstInner, secondInner, missingParentInner];
 const outerDeck = [firstOuter, secondOuter];
 
+const selectedDeck: Deck = {
+  id: firstOuter.deck_id,
+  name: "Lesson 13",
+  description: "Chapter vocabulary",
+  sort_order: 13,
+  created_at: "2026-07-14T00:00:00Z",
+  updated_at: "2026-07-14T00:00:00Z",
+};
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((resolvePromise) => {
@@ -150,7 +177,13 @@ function renderApp(route = "/review/inner") {
 }
 
 beforeEach(() => {
+  vi.mocked(retrieveDeck).mockResolvedValue(selectedDeck);
+  vi.mocked(retrieveInnerCard).mockResolvedValue(firstInner);
   vi.mocked(fetchCompleteInnerReviewDeck).mockResolvedValue(innerDeck);
+  vi.mocked(fetchCompleteDeckScopedInnerReviewDeck).mockResolvedValue({
+    cards: [firstInner, secondInner],
+    parents: outerDeck,
+  });
   vi.mocked(fetchCompleteOuterReviewDeck).mockResolvedValue(outerDeck);
   vi.mocked(generateShuffleSeed).mockReturnValue(20260714);
   vi.mocked(listOuterCards).mockResolvedValue({
@@ -212,6 +245,89 @@ describe("inner review deck states and routing", () => {
     expect(screen.getByRole("link", { name: /経験を積む/ })).toHaveAttribute(
       "aria-current",
       "page",
+    );
+  });
+
+  it("loads and restores a deck-scoped inner review with its parent map", async () => {
+    renderApp("/review/decks/" + selectedDeck.id + "/inner");
+
+    expect(
+      await screen.findByLabelText("Inner review progress"),
+    ).toHaveTextContent("1 / 2");
+    expect(fetchCompleteDeckScopedInnerReviewDeck).toHaveBeenCalledTimes(1);
+    expect(fetchCompleteDeckScopedInnerReviewDeck).toHaveBeenCalledWith(
+      selectedDeck.id,
+    );
+    expect(fetchCompleteInnerReviewDeck).not.toHaveBeenCalled();
+    expect(fetchCompleteOuterReviewDeck).not.toHaveBeenCalled();
+    expect(screen.getAllByText(/Lesson 13/).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/review/decks/" + selectedDeck.id + "/inner/" + firstInner.id,
+    );
+    expect(
+      screen.getByRole("link", { name: "Outer review for this deck" }),
+    ).toHaveAttribute("href", "/review/decks/" + selectedDeck.id + "/outer");
+  });
+
+  it("preserves a deck-scoped inner shuffle seed through keyboard navigation", async () => {
+    const scopedInnerDeck = [firstInner, secondInner];
+    const seed = 123;
+    const shuffled = deterministicShuffle(scopedInnerDeck, seed);
+    renderApp(
+      "/review/decks/" +
+        selectedDeck.id +
+        "/inner/" +
+        shuffled[0].id +
+        "?mode=shuffle&seed=" +
+        seed,
+    );
+    await screen.findByLabelText("Inner review progress");
+
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Current route")).toHaveTextContent(
+        "/review/decks/" +
+          selectedDeck.id +
+          "/inner/" +
+          shuffled[1].id +
+          "?mode=shuffle&seed=" +
+          seed,
+      ),
+    );
+    expect(screen.getByLabelText("Inner review progress")).toHaveTextContent(
+      "2 / 2",
+    );
+  });
+
+  it("does not display an inner card whose parent belongs to another deck", async () => {
+    const foreignDeckId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const foreignParent = {
+      ...firstOuter,
+      id: "99999999-9999-4999-8999-999999999999",
+      deck_id: foreignDeckId,
+    };
+    const foreignInner = {
+      ...firstInner,
+      id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      outer_card_id: foreignParent.id,
+    };
+    vi.mocked(retrieveInnerCard).mockResolvedValue(foreignInner);
+    vi.mocked(retrieveOuterCard).mockResolvedValue(foreignParent);
+    renderApp("/review/decks/" + selectedDeck.id + "/inner/" + foreignInner.id);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Inner card belongs to another deck",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: "Open inner card in its actual deck",
+      }),
+    ).toHaveAttribute(
+      "href",
+      "/review/decks/" + foreignDeckId + "/inner/" + foreignInner.id,
     );
   });
 

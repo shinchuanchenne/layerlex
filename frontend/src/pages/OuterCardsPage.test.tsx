@@ -16,6 +16,7 @@ import {
   type Deck,
 } from "../lib/decks";
 import { retrieveInnerCard, type InnerCard } from "../lib/innerCards";
+import { innerReviewKeys } from "../lib/innerReviewKeys";
 import {
   createOuterCard,
   deleteOuterCard,
@@ -305,7 +306,13 @@ describe("deck management", () => {
     vi.mocked(deleteDeck).mockRejectedValue(
       new ApiError(409, "Deck contains outer cards"),
     );
-    renderApp();
+    const { queryClient } = renderApp();
+    queryClient.setQueryData(outerReviewKeys.deckOrderedDeck(firstDeck.id), [
+      firstCard,
+    ]);
+    queryClient.setQueryData(innerReviewKeys.deckOrderedDeck(firstDeck.id), [
+      innerCard,
+    ]);
     await screen.findByRole("heading", { name: firstDeck.name });
 
     await user.click(screen.getByRole("button", { name: "Delete deck" }));
@@ -316,12 +323,27 @@ describe("deck management", () => {
     expect(screen.getByLabelText("Current route")).toHaveTextContent(
       "/decks/" + firstDeck.id,
     );
+    expect(
+      queryClient.getQueryData(outerReviewKeys.deckOrderedDeck(firstDeck.id)),
+    ).toEqual([firstCard]);
+    expect(
+      queryClient.getQueryData(innerReviewKeys.deckOrderedDeck(firstDeck.id)),
+    ).toEqual([innerCard]);
   });
 
   it("deletes an empty deck after confirmation and clears selection", async () => {
     const user = userEvent.setup();
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    renderApp();
+    const { queryClient } = renderApp();
+    queryClient.setQueryData(outerReviewKeys.deckOrderedDeck(firstDeck.id), [
+      firstCard,
+    ]);
+    queryClient.setQueryData(innerReviewKeys.deckOrderedDeck(firstDeck.id), [
+      innerCard,
+    ]);
+    queryClient.setQueryData(outerReviewKeys.deckOrderedDeck(secondDeck.id), [
+      secondCard,
+    ]);
     await screen.findByRole("heading", { name: firstDeck.name });
 
     await user.click(screen.getByRole("button", { name: "Delete deck" }));
@@ -331,6 +353,15 @@ describe("deck management", () => {
     expect(
       await screen.findByRole("heading", { name: "Select or create a deck" }),
     ).toBeInTheDocument();
+    expect(
+      queryClient.getQueryData(outerReviewKeys.deckOrderedDeck(firstDeck.id)),
+    ).toBeUndefined();
+    expect(
+      queryClient.getQueryData(innerReviewKeys.deckOrderedDeck(firstDeck.id)),
+    ).toBeUndefined();
+    expect(
+      queryClient.getQueryData(outerReviewKeys.deckOrderedDeck(secondDeck.id)),
+    ).toEqual([secondCard]);
   });
 
   it("does not display a card under a mismatched deck route", async () => {
@@ -368,13 +399,27 @@ describe("deck management", () => {
       offset: 0,
       limit: 10,
     }));
-    renderApp(
+    const { queryClient } = renderApp(
       "/decks/" +
         firstDeck.id +
         "/cards/" +
         firstCard.id +
         "/inner/" +
         innerCard.id,
+    );
+    queryClient.setQueryData(outerReviewKeys.deckOrderedDeck(firstDeck.id), [
+      firstCard,
+    ]);
+    queryClient.setQueryData(
+      outerReviewKeys.deckOrderedDeck(secondDeck.id),
+      [],
+    );
+    queryClient.setQueryData(innerReviewKeys.deckOrderedDeck(firstDeck.id), [
+      innerCard,
+    ]);
+    queryClient.setQueryData(
+      innerReviewKeys.deckOrderedDeck(secondDeck.id),
+      [],
     );
     await screen.findByRole("heading", { name: firstCard.term });
 
@@ -398,6 +443,22 @@ describe("deck management", () => {
         "/inner/" +
         innerCard.id,
     );
+    expect(
+      queryClient.getQueryState(outerReviewKeys.deckOrderedDeck(firstDeck.id))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(outerReviewKeys.deckOrderedDeck(secondDeck.id))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(innerReviewKeys.deckOrderedDeck(firstDeck.id))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(innerReviewKeys.deckOrderedDeck(secondDeck.id))
+        ?.isInvalidated,
+    ).toBe(true);
   });
 
   it("switching decks clears card, inner, search, and pagination selection", async () => {
@@ -810,12 +871,43 @@ describe("outer-review source-deck cache coherence", () => {
       firstCard,
       secondCard,
     ]);
+    queryClient.setQueryData(outerReviewKeys.deckOrderedDeck(firstDeck.id), [
+      firstCard,
+      secondCard,
+    ]);
+    queryClient.setQueryData(innerReviewKeys.deckOrderedDeck(firstDeck.id), [
+      innerCard,
+    ]);
+    queryClient.setQueryData(
+      outerReviewKeys.deckOrderedDeck(secondDeck.id),
+      [],
+    );
+    queryClient.setQueryData(
+      innerReviewKeys.deckOrderedDeck(secondDeck.id),
+      [],
+    );
   }
 
   function expectReviewDeckInvalidated(queryClient: QueryClient) {
     expect(
       queryClient.getQueryState(outerReviewKeys.orderedDeck())?.isInvalidated,
     ).toBe(true);
+    expect(
+      queryClient.getQueryState(outerReviewKeys.deckOrderedDeck(firstDeck.id))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(innerReviewKeys.deckOrderedDeck(firstDeck.id))
+        ?.isInvalidated,
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(outerReviewKeys.deckOrderedDeck(secondDeck.id))
+        ?.isInvalidated,
+    ).toBe(false);
+    expect(
+      queryClient.getQueryState(innerReviewKeys.deckOrderedDeck(secondDeck.id))
+        ?.isInvalidated,
+    ).toBe(false);
   }
 
   it("invalidates the ordered source deck after create", async () => {

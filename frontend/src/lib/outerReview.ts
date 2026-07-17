@@ -6,8 +6,11 @@ export { outerReviewKeys } from "./outerReviewKeys";
 export const OUTER_REVIEW_PAGE_SIZE = 200;
 export const OUTER_REVIEW_INNER_PAGE_SIZE = 200;
 
-export async function fetchCompleteOuterReviewDeck(): Promise<OuterCard[]> {
+export async function fetchCompleteOuterReviewDeck(
+  deckId?: string,
+): Promise<OuterCard[]> {
   const deck: OuterCard[] = [];
+  const seenIds = new Set<string>();
   let offset = 0;
 
   while (true) {
@@ -15,8 +18,22 @@ export async function fetchCompleteOuterReviewDeck(): Promise<OuterCard[]> {
       search: "",
       offset,
       limit: OUTER_REVIEW_PAGE_SIZE,
+      deck_id: deckId,
     });
-    deck.push(...page.items);
+    for (const card of page.items) {
+      if (deckId && card.deck_id !== deckId) {
+        throw new Error(
+          "The outer-card API returned a card from another deck while loading deck-scoped review.",
+        );
+      }
+      if (seenIds.has(card.id)) {
+        throw new Error(
+          "The outer-card API returned a duplicate card while loading the review deck.",
+        );
+      }
+      seenIds.add(card.id);
+      deck.push(card);
+    }
 
     if (deck.length >= page.total) {
       return deck;

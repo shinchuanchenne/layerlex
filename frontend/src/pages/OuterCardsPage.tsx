@@ -168,6 +168,12 @@ export function OuterCardsPage() {
       queryClient.removeQueries({
         queryKey: outerCardKeys.deckLists(deletedDeckId),
       });
+      queryClient.removeQueries({
+        queryKey: outerReviewKeys.deck(deletedDeckId),
+      });
+      queryClient.removeQueries({
+        queryKey: innerReviewKeys.deck(deletedDeckId),
+      });
       void queryClient.invalidateQueries({ queryKey: deckKeys.lists() });
       void queryClient.invalidateQueries({
         queryKey: deckKeys.completeList(),
@@ -447,6 +453,12 @@ function DeckOuterCardsWorkspace({
       void queryClient.invalidateQueries({
         queryKey: outerReviewKeys.orderedDeck(),
       });
+      void queryClient.invalidateQueries({
+        queryKey: outerReviewKeys.deckOrderedDeck(deck.id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: innerReviewKeys.deckOrderedDeck(deck.id),
+      });
       setFormMode(null);
       navigate(`/decks/${deck.id}/cards/${createdCard.id}`);
     },
@@ -483,6 +495,18 @@ function DeckOuterCardsWorkspace({
       });
       void queryClient.invalidateQueries({
         queryKey: outerReviewKeys.orderedDeck(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: outerReviewKeys.deckOrderedDeck(sourceDeckId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: outerReviewKeys.deckOrderedDeck(updatedCard.deck_id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: innerReviewKeys.deckOrderedDeck(sourceDeckId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: innerReviewKeys.deckOrderedDeck(updatedCard.deck_id),
       });
       setFormMode(null);
       if (updatedCard.deck_id !== sourceDeckId) {
@@ -525,6 +549,12 @@ function DeckOuterCardsWorkspace({
       });
       void queryClient.invalidateQueries({
         queryKey: outerReviewKeys.orderedDeck(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: outerReviewKeys.deckOrderedDeck(deck.id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: innerReviewKeys.deckOrderedDeck(deck.id),
       });
       queryClient.removeQueries({
         queryKey: innerCardKeys.parentLists(deletedCardId),
@@ -608,6 +638,18 @@ function DeckOuterCardsWorkspace({
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
+          <Link
+            to={"/review/decks/" + deck.id + "/outer"}
+            className="rounded-full bg-cyan-800 px-4 py-2 font-semibold text-white hover:bg-cyan-700 focus:ring-2 focus:ring-cyan-600 focus:ring-offset-2 focus:outline-none"
+          >
+            Review outer cards
+          </Link>
+          <Link
+            to={"/review/decks/" + deck.id + "/inner"}
+            className="rounded-full bg-violet-800 px-4 py-2 font-semibold text-white hover:bg-violet-700 focus:ring-2 focus:ring-violet-600 focus:ring-offset-2 focus:outline-none"
+          >
+            Review inner cards
+          </Link>
           <button
             type="button"
             onClick={onEditDeck}

@@ -26,6 +26,16 @@ export function App() {
       <Route path="/review/outer/:outerCardId" element={<OuterReviewPage />} />
       <Route path="/review/inner" element={<InnerReviewPage />} />
       <Route path="/review/inner/:innerCardId" element={<InnerReviewPage />} />
+      <Route path="/review/decks/:deckId/outer" element={<OuterReviewPage />} />
+      <Route
+        path="/review/decks/:deckId/outer/:outerCardId"
+        element={<OuterReviewPage />}
+      />
+      <Route path="/review/decks/:deckId/inner" element={<InnerReviewPage />} />
+      <Route
+        path="/review/decks/:deckId/inner/:innerCardId"
+        element={<InnerReviewPage />}
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

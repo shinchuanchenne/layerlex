@@ -15,11 +15,20 @@ import {
 import { InnerReviewDirectory } from "../components/InnerReviewDirectory";
 import { ReviewKeyboardHelp } from "../components/ReviewKeyboardHelp";
 import { getApiErrorMessage } from "../lib/api";
-import { fetchCompleteInnerReviewDeck } from "../lib/innerReview";
+import { deckKeys, retrieveDeck } from "../lib/decks";
+import {
+  fetchCompleteDeckScopedInnerReviewDeck,
+  fetchCompleteInnerReviewDeck,
+} from "../lib/innerReview";
 import { innerReviewKeys } from "../lib/innerReviewKeys";
-import type { InnerCard } from "../lib/innerCards";
+import {
+  innerCardKeys,
+  retrieveInnerCard,
+  type InnerCard,
+} from "../lib/innerCards";
 import { fetchCompleteOuterReviewDeck } from "../lib/outerReview";
 import { outerReviewKeys } from "../lib/outerReviewKeys";
+import { outerCardKeys, retrieveOuterCard } from "../lib/outerCards";
 import {
   deterministicShuffle,
   generateShuffleSeed,
@@ -28,33 +37,61 @@ import {
 
 const EMPTY_INNER_REVIEW_DECK: InnerCard[] = [];
 
-function buildReviewUrl(innerCardId: string, shuffleSeed?: number) {
-  const path = "/review/inner/" + innerCardId;
+function getReviewBasePath(deckId?: string) {
+  return deckId ? `/review/decks/${deckId}/inner` : "/review/inner";
+}
+
+function buildReviewUrl(
+  innerCardId: string,
+  shuffleSeed?: number,
+  deckId?: string,
+) {
+  const path = getReviewBasePath(deckId) + "/" + innerCardId;
   return shuffleSeed === undefined
     ? path
     : path + "?mode=shuffle&seed=" + shuffleSeed;
 }
 
 export function InnerReviewPage() {
-  const { innerCardId } = useParams<{ innerCardId: string }>();
+  const { deckId, innerCardId } = useParams<{
+    deckId: string;
+    innerCardId: string;
+  }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [displayMode, setDisplayMode] =
     useState<InnerReviewDisplayMode>("flip");
-  const deckQuery = useQuery({
-    queryKey: innerReviewKeys.orderedDeck(),
-    queryFn: fetchCompleteInnerReviewDeck,
+  const deckDetailQuery = useQuery({
+    queryKey: deckKeys.detail(deckId ?? ""),
+    queryFn: () => retrieveDeck(deckId ?? ""),
+    enabled: Boolean(deckId),
+    retry: false,
+  });
+  const scopedSourceQuery = useQuery({
+    queryKey: innerReviewKeys.deckOrderedDeck(deckId ?? ""),
+    queryFn: () => fetchCompleteDeckScopedInnerReviewDeck(deckId ?? ""),
+    enabled: Boolean(deckId) && deckDetailQuery.isSuccess,
     retry: false,
     staleTime: 0,
   });
-  const parentDeckQuery = useQuery({
+  const globalDeckQuery = useQuery({
+    queryKey: innerReviewKeys.orderedDeck(),
+    queryFn: fetchCompleteInnerReviewDeck,
+    enabled: !deckId,
+    retry: false,
+    staleTime: 0,
+  });
+  const globalParentDeckQuery = useQuery({
     queryKey: outerReviewKeys.orderedDeck(),
-    queryFn: fetchCompleteOuterReviewDeck,
+    queryFn: () => fetchCompleteOuterReviewDeck(),
+    enabled: !deckId,
     retry: false,
     staleTime: 0,
   });
 
-  const orderedDeck = deckQuery.data ?? EMPTY_INNER_REVIEW_DECK;
+  const orderedDeck = deckId
+    ? (scopedSourceQuery.data?.cards ?? EMPTY_INNER_REVIEW_DECK)
+    : (globalDeckQuery.data ?? EMPTY_INNER_REVIEW_DECK);
   const modeParam = searchParams.get("mode");
   const seedParam = searchParams.get("seed");
   const shuffleSeed = parseShuffleSeed(seedParam);
@@ -77,9 +114,12 @@ export function InnerReviewPage() {
   const parentsById = useMemo(
     () =>
       new Map(
-        (parentDeckQuery.data ?? []).map((parent) => [parent.id, parent]),
+        (deckId
+          ? (scopedSourceQuery.data?.parents ?? [])
+          : (globalParentDeckQuery.data ?? [])
+        ).map((parent) => [parent.id, parent]),
       ),
-    [parentDeckQuery.data],
+    [deckId, globalParentDeckQuery.data, scopedSourceQuery.data?.parents],
   );
   const currentIndex = innerCardId
     ? deck.findIndex((card) => card.id === innerCardId)
@@ -88,36 +128,80 @@ export function InnerReviewPage() {
   const currentParent = currentCard
     ? parentsById.get(currentCard.outer_card_id)
     : undefined;
-  const deckError = deckQuery.isError
-    ? getApiErrorMessage(deckQuery.error)
+  const sourceError = deckId
+    ? scopedSourceQuery.isError
+      ? getApiErrorMessage(scopedSourceQuery.error)
+      : undefined
+    : globalDeckQuery.isError
+      ? getApiErrorMessage(globalDeckQuery.error)
+      : undefined;
+  const deckDetailError = deckDetailQuery.isError
+    ? getApiErrorMessage(deckDetailQuery.error)
     : undefined;
-  const parentDeckError = parentDeckQuery.isError
-    ? getApiErrorMessage(parentDeckQuery.error)
+  const parentDeckError = globalParentDeckQuery.isError
+    ? getApiErrorMessage(globalParentDeckQuery.error)
     : undefined;
+  const reviewIsPending = deckId
+    ? deckDetailQuery.isPending ||
+      (deckDetailQuery.isSuccess && scopedSourceQuery.isPending)
+    : globalDeckQuery.isPending;
+  const reviewError = deckDetailError ?? sourceError;
+  const reviewReady = !reviewIsPending && !reviewError;
+  const reviewBasePath = getReviewBasePath(deckId);
+  const managementPath = deckId ? "/decks/" + deckId : "/decks";
+  const outerReviewPath = deckId
+    ? `/review/decks/${deckId}/outer`
+    : "/review/outer";
+  const recoveryInnerQuery = useQuery({
+    queryKey: innerCardKeys.detail(innerCardId ?? ""),
+    queryFn: () => retrieveInnerCard(innerCardId ?? ""),
+    enabled: Boolean(deckId && innerCardId) && reviewReady && currentIndex < 0,
+    retry: false,
+  });
+  const recoveryParentQuery = useQuery({
+    queryKey: outerCardKeys.detail(
+      recoveryInnerQuery.data?.outer_card_id ?? "",
+    ),
+    queryFn: () =>
+      retrieveOuterCard(recoveryInnerQuery.data?.outer_card_id ?? ""),
+    enabled: Boolean(deckId && recoveryInnerQuery.data),
+    retry: false,
+  });
 
-  if (!deckQuery.isPending && !deckError) {
+  if (reviewReady) {
     if (hasInvalidRoundParameters) {
       return (
         <Navigate
-          to={innerCardId ? buildReviewUrl(innerCardId) : "/review/inner"}
+          to={
+            innerCardId
+              ? buildReviewUrl(innerCardId, undefined, deckId)
+              : reviewBasePath
+          }
           replace
         />
       );
     }
     if (deck.length > 0 && !innerCardId) {
       return (
-        <Navigate to={buildReviewUrl(deck[0].id, activeShuffleSeed)} replace />
+        <Navigate
+          to={buildReviewUrl(deck[0].id, activeShuffleSeed, deckId)}
+          replace
+        />
       );
     }
   }
 
   function goToIndex(index: number) {
     const card = deck[index];
-    if (card) navigate(buildReviewUrl(card.id, activeShuffleSeed));
+    if (card) {
+      navigate(buildReviewUrl(card.id, activeShuffleSeed, deckId));
+    }
   }
 
   function selectOrderedMode() {
-    if (currentCard) navigate(buildReviewUrl(currentCard.id));
+    if (currentCard) {
+      navigate(buildReviewUrl(currentCard.id, undefined, deckId));
+    }
   }
 
   function startShuffledRound(forceNewRound: boolean) {
@@ -127,7 +211,9 @@ export function InnerReviewPage() {
     if (nextSeed === activeShuffleSeed) nextSeed = (nextSeed + 1) >>> 0;
     const shuffledDeck = deterministicShuffle(orderedDeck, nextSeed);
     const firstCard = shuffledDeck[0];
-    if (firstCard) navigate(buildReviewUrl(firstCard.id, nextSeed));
+    if (firstCard) {
+      navigate(buildReviewUrl(firstCard.id, nextSeed, deckId));
+    }
   }
 
   return (
@@ -136,27 +222,49 @@ export function InnerReviewPage() {
         cards={deck}
         currentCardId={innerCardId}
         parentsById={parentsById}
+        reviewBasePath={reviewBasePath}
+        managementPath={managementPath}
+        outerReviewPath={outerReviewPath}
+        deckName={deckDetailQuery.data?.name}
         isShuffled={isShuffled}
         roundQuery={roundQuery}
-        isLoading={deckQuery.isPending}
-        errorMessage={deckError}
-        onRetry={() => void deckQuery.refetch()}
+        isLoading={reviewIsPending}
+        errorMessage={reviewError}
+        onRetry={() => {
+          if (deckDetailQuery.isError) {
+            void deckDetailQuery.refetch();
+          } else if (deckId) {
+            void scopedSourceQuery.refetch();
+          } else {
+            void globalDeckQuery.refetch();
+          }
+        }}
       />
 
       <section
         aria-label="Inner review workspace"
         className="flex min-h-[42rem] p-5 sm:p-8 lg:min-h-screen lg:p-12"
       >
-        {deckQuery.isPending ? (
+        {reviewIsPending ? (
           <p role="status" className="m-auto text-slate-500">
-            Preparing the complete ordered inner review deck…
+            {deckId && deckDetailQuery.isPending
+              ? "Loading selected deck…"
+              : "Preparing the complete ordered inner review deck…"}
           </p>
-        ) : deckError ? (
+        ) : reviewError ? (
           <section className="m-auto max-w-lg text-center">
-            <h2 className="text-3xl font-semibold">Inner review unavailable</h2>
-            <p className="mt-3 leading-7 text-slate-600">
-              Retry from the inner review directory when the API is available.
-            </p>
+            <h2 className="text-3xl font-semibold">
+              {deckDetailQuery.isError
+                ? "Selected deck unavailable"
+                : "Inner review unavailable"}
+            </h2>
+            <p className="mt-3 leading-7 text-slate-600">{reviewError}</p>
+            <Link
+              to="/decks"
+              className="mt-6 inline-flex rounded-full border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-700"
+            >
+              Return to deck management
+            </Link>
           </section>
         ) : deck.length === 0 ? (
           <section className="m-auto max-w-md text-center">
@@ -167,34 +275,71 @@ export function InnerReviewPage() {
               Add inner content before reviewing
             </h2>
             <p className="mt-4 leading-7 text-slate-600">
-              The inner review deck will appear after an inner card is added to
-              an outer card.
+              {deckId
+                ? "This deck has no inner content to review yet."
+                : "The inner review deck will appear after an inner card is added to an outer card."}
             </p>
             <Link
-              to="/decks"
+              to={managementPath}
               className="mt-7 inline-flex rounded-full bg-slate-950 px-5 py-3 font-semibold text-white"
             >
               Go to card management
             </Link>
           </section>
+        ) : !currentCard &&
+          deckId &&
+          (recoveryInnerQuery.isPending ||
+            (recoveryInnerQuery.data && recoveryParentQuery.isPending)) ? (
+          <p role="status" className="m-auto text-slate-500">
+            Checking the requested inner card…
+          </p>
         ) : !currentCard ? (
           <section
             role="alert"
             className="m-auto max-w-lg rounded-3xl border border-amber-300 bg-white p-8 text-center shadow-sm"
           >
             <h2 className="text-3xl font-semibold">
-              Inner review card not found
+              {deckId &&
+              recoveryParentQuery.data &&
+              recoveryParentQuery.data.deck_id !== deckId
+                ? "Inner card belongs to another deck"
+                : "Inner review card not found"}
             </h2>
             <p className="mt-3 leading-7 text-slate-600">
-              This card is not part of the current inner review round.
+              This inner card is not part of the selected deck and has not been
+              displayed here.
             </p>
-            <button
-              type="button"
-              onClick={() => goToIndex(0)}
-              className="mt-7 rounded-full bg-slate-950 px-5 py-3 font-semibold text-white"
-            >
-              Return to first inner review card
-            </button>
+            <div className="mt-7 flex flex-wrap justify-center gap-3">
+              <Link
+                to={reviewBasePath}
+                className="rounded-full border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-700"
+              >
+                Return to selected deck review
+              </Link>
+              {deckId &&
+              recoveryInnerQuery.data &&
+              recoveryParentQuery.data &&
+              recoveryParentQuery.data.deck_id !== deckId ? (
+                <Link
+                  to={buildReviewUrl(
+                    recoveryInnerQuery.data.id,
+                    undefined,
+                    recoveryParentQuery.data.deck_id,
+                  )}
+                  className="rounded-full bg-slate-950 px-5 py-3 font-semibold text-white"
+                >
+                  Open inner card in its actual deck
+                </Link>
+              ) : deck.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => goToIndex(0)}
+                  className="rounded-full bg-slate-950 px-5 py-3 font-semibold text-white"
+                >
+                  Return to first inner review card
+                </button>
+              ) : null}
+            </div>
           </section>
         ) : (
           <div className="m-auto w-full max-w-5xl">
@@ -205,6 +350,11 @@ export function InnerReviewPage() {
                     ? "Shuffled inner review"
                     : "Ordered inner review"}
                 </p>
+                {deckDetailQuery.data ? (
+                  <p className="mt-2 max-w-xl text-sm font-semibold break-words text-violet-900">
+                    Deck: {deckDetailQuery.data.name}
+                  </p>
+                ) : null}
                 <output
                   aria-label="Inner review progress"
                   className="mt-2 block text-3xl font-semibold text-slate-950"
@@ -302,7 +452,7 @@ export function InnerReviewPage() {
               </div>
             </header>
 
-            {parentDeckQuery.isPending ? (
+            {!deckId && globalParentDeckQuery.isPending ? (
               <p
                 role="status"
                 className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600"
@@ -317,7 +467,7 @@ export function InnerReviewPage() {
                 <p>Parent context unavailable. Inner review can continue.</p>
                 <button
                   type="button"
-                  onClick={() => void parentDeckQuery.refetch()}
+                  onClick={() => void globalParentDeckQuery.refetch()}
                   className="font-semibold underline underline-offset-4"
                 >
                   Retry parent context
