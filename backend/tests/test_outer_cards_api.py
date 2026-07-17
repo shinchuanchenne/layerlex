@@ -7,6 +7,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
 from app.models import InnerCard, OuterCard
+from tests.conftest import TEST_DECK_ID
 
 OUTER_CARDS_URL = "/api/v1/outer-cards"
 NOT_FOUND_RESPONSE = {"detail": "Outer card not found"}
@@ -14,6 +15,7 @@ NOT_FOUND_RESPONSE = {"detail": "Outer card not found"}
 
 def create_card(client: TestClient, **overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
+        "deck_id": str(TEST_DECK_ID),
         "term": "スケジュール",
         "meaning": "行程、計畫",
     }
@@ -27,6 +29,7 @@ def test_create_outer_card_with_all_fields(api_client: TestClient) -> None:
     response = api_client.post(
         OUTER_CARDS_URL,
         json={
+            "deck_id": str(TEST_DECK_ID),
             "term": "スケジュール",
             "reading": "スケジュール",
             "part_of_speech": "名詞",
@@ -63,6 +66,7 @@ def test_create_trims_strings_and_normalises_optional_blanks(api_client: TestCli
     response = api_client.post(
         OUTER_CARDS_URL,
         json={
+            "deck_id": str(TEST_DECK_ID),
             "term": "  確認  ",
             "reading": "   ",
             "part_of_speech": "  動詞  ",
@@ -87,7 +91,11 @@ def test_create_rejects_blank_required_fields(
     api_client: TestClient,
     field_name: str,
 ) -> None:
-    payload = {"term": "予定", "meaning": "預定"}
+    payload = {
+        "deck_id": str(TEST_DECK_ID),
+        "term": "予定",
+        "meaning": "預定",
+    }
     payload[field_name] = "   "
 
     response = api_client.post(OUTER_CARDS_URL, json=payload)
@@ -124,6 +132,7 @@ def test_list_uses_stable_ordering(
     cards = [
         OuterCard(
             id=UUID("00000000-0000-0000-0000-000000000003"),
+            deck_id=TEST_DECK_ID,
             term="third",
             meaning="third",
             sort_order=1,
@@ -132,6 +141,7 @@ def test_list_uses_stable_ordering(
         ),
         OuterCard(
             id=UUID("00000000-0000-0000-0000-000000000002"),
+            deck_id=TEST_DECK_ID,
             term="second",
             meaning="second",
             sort_order=1,
@@ -140,13 +150,19 @@ def test_list_uses_stable_ordering(
         ),
         OuterCard(
             id=UUID("00000000-0000-0000-0000-000000000001"),
+            deck_id=TEST_DECK_ID,
             term="first",
             meaning="first",
             sort_order=1,
             created_at=older,
             updated_at=older,
         ),
-        OuterCard(term="before all", meaning="before", sort_order=0),
+        OuterCard(
+            deck_id=TEST_DECK_ID,
+            term="before all",
+            meaning="before",
+            sort_order=0,
+        ),
     ]
     with Session(sqlite_engine) as session:
         session.add_all(cards)
@@ -360,7 +376,7 @@ def test_delete_cascades_to_inner_cards(
     api_client: TestClient,
     sqlite_engine: Engine,
 ) -> None:
-    outer_card = OuterCard(term="経験", meaning="經驗")
+    outer_card = OuterCard(deck_id=TEST_DECK_ID, term="経験", meaning="經驗")
     inner_card = InnerCard(
         outer_card_id=outer_card.id,
         expression="経験を積む",

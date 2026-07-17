@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,6 +10,9 @@ from sqlmodel import Session, SQLModel
 from app import models as app_models  # noqa: F401
 from app.core.database import create_database_engine, get_session
 from app.main import app
+from app.models import Deck
+
+TEST_DECK_ID = UUID("11111111-1111-4111-8111-111111111111")
 
 
 @pytest.fixture
@@ -20,6 +24,9 @@ def sqlite_url(tmp_path: Path) -> str:
 def sqlite_engine(sqlite_url: str) -> Iterator[Engine]:
     engine = create_database_engine(sqlite_url)
     SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add(Deck(id=TEST_DECK_ID, name="Test deck"))
+        session.commit()
 
     try:
         yield engine

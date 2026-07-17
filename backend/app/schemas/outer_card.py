@@ -10,6 +10,7 @@ from app.schemas.validation import strip_optional_string, strip_required_string
 class OuterCardCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    deck_id: UUID
     term: str
     reading: str | None = None
     part_of_speech: str | None = None
@@ -31,6 +32,7 @@ class OuterCardCreate(BaseModel):
 class OuterCardUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    deck_id: UUID | None = None
     term: str | None = None
     reading: str | None = None
     part_of_speech: str | None = None
@@ -45,7 +47,7 @@ class OuterCardUpdate(BaseModel):
         if isinstance(value, dict):
             if not value:
                 raise ValueError("at least one field must be provided")
-            for field_name in ("term", "meaning", "sort_order"):
+            for field_name in ("deck_id", "term", "meaning", "sort_order"):
                 if field_name in value and value[field_name] is None:
                     raise ValueError(f"{field_name} cannot be null")
         return value
@@ -64,6 +66,7 @@ class OuterCardRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    deck_id: UUID
     term: str
     reading: str | None
     part_of_speech: str | None

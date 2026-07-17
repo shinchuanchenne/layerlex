@@ -7,13 +7,18 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
 from app.models import InnerCard, OuterCard
+from tests.conftest import TEST_DECK_ID
 
 OUTER_CARDS_URL = "/api/v1/outer-cards"
 INNER_CARDS_URL = "/api/v1/inner-cards"
 
 
 def create_outer_card(client: TestClient, **overrides: object) -> dict[str, object]:
-    payload: dict[str, object] = {"term": "経験", "meaning": "經驗"}
+    payload: dict[str, object] = {
+        "deck_id": str(TEST_DECK_ID),
+        "term": "経験",
+        "meaning": "經驗",
+    }
     payload.update(overrides)
     response = client.post(OUTER_CARDS_URL, json=payload)
     assert response.status_code == 201
@@ -44,6 +49,7 @@ def seed_globally_ordered_cards(sqlite_engine: Engine) -> list[str]:
     newest = datetime(2026, 1, 3, tzinfo=UTC)
     outer_first = OuterCard(
         id=UUID("10000000-0000-4000-8000-000000000003"),
+        deck_id=TEST_DECK_ID,
         term="first parent",
         meaning="first",
         sort_order=0,
@@ -52,6 +58,7 @@ def seed_globally_ordered_cards(sqlite_engine: Engine) -> list[str]:
     )
     outer_tie_first = OuterCard(
         id=UUID("20000000-0000-4000-8000-000000000001"),
+        deck_id=TEST_DECK_ID,
         term="tie parent first",
         meaning="tie first",
         sort_order=1,
@@ -60,6 +67,7 @@ def seed_globally_ordered_cards(sqlite_engine: Engine) -> list[str]:
     )
     outer_tie_second = OuterCard(
         id=UUID("20000000-0000-4000-8000-000000000002"),
+        deck_id=TEST_DECK_ID,
         term="tie parent second",
         meaning="tie second",
         sort_order=1,
@@ -68,6 +76,7 @@ def seed_globally_ordered_cards(sqlite_engine: Engine) -> list[str]:
     )
     outer_later = OuterCard(
         id=UUID("20000000-0000-4000-8000-000000000000"),
+        deck_id=TEST_DECK_ID,
         term="later parent",
         meaning="later",
         sort_order=1,
@@ -75,6 +84,7 @@ def seed_globally_ordered_cards(sqlite_engine: Engine) -> list[str]:
         updated_at=newer,
     )
     empty_outer = OuterCard(
+        deck_id=TEST_DECK_ID,
         term="empty parent",
         meaning="empty",
         sort_order=-1,

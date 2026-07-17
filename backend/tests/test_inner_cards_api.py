@@ -7,6 +7,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
 from app.models import InnerCard, OuterCard
+from tests.conftest import TEST_DECK_ID
 
 OUTER_CARDS_URL = "/api/v1/outer-cards"
 INNER_CARDS_URL = "/api/v1/inner-cards"
@@ -15,7 +16,11 @@ INNER_NOT_FOUND = {"detail": "Inner card not found"}
 
 
 def create_outer_card(client: TestClient, **overrides: object) -> dict[str, object]:
-    payload: dict[str, object] = {"term": "経験", "meaning": "經驗"}
+    payload: dict[str, object] = {
+        "deck_id": str(TEST_DECK_ID),
+        "term": "経験",
+        "meaning": "經驗",
+    }
     payload.update(overrides)
     response = client.post(OUTER_CARDS_URL, json=payload)
     assert response.status_code == 201
@@ -191,7 +196,7 @@ def test_list_uses_stable_ordering(
 ) -> None:
     older = datetime(2026, 1, 1, tzinfo=UTC)
     newer = datetime(2026, 1, 2, tzinfo=UTC)
-    outer = OuterCard(term="経験", meaning="經驗")
+    outer = OuterCard(deck_id=TEST_DECK_ID, term="経験", meaning="經驗")
     cards = [
         InnerCard(
             id=UUID("00000000-0000-0000-0000-000000000003"),

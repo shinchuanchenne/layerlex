@@ -7,7 +7,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from app.models import InnerCard, OuterCard
+from app.models import Deck, InnerCard, OuterCard
+from tests.conftest import TEST_DECK_ID
 
 
 def test_sqlite_connection_pragmas(sqlite_engine: Engine) -> None:
@@ -21,8 +22,56 @@ def test_sqlite_connection_pragmas(sqlite_engine: Engine) -> None:
     assert busy_timeout == 5000
 
 
+def test_deck_uuid_defaults_relationship_and_persistence(sqlite_engine: Engine) -> None:
+    deck = Deck(name="Lesson 13")
+    outer_card = OuterCard(
+        deck_id=deck.id,
+        term="経験",
+        meaning="經驗",
+    )
+    deck.outer_cards.append(outer_card)
+
+    assert isinstance(deck.id, UUID)
+    assert deck.description is None
+    assert deck.sort_order == 0
+    assert deck.created_at.tzinfo is not None
+    assert deck.updated_at.tzinfo is not None
+
+    with Session(sqlite_engine) as session:
+        session.add(deck)
+        session.commit()
+        session.expire_all()
+
+        stored_deck = session.get(Deck, deck.id)
+        assert stored_deck is not None
+        assert isinstance(stored_deck.id, UUID)
+        assert [card.id for card in stored_deck.outer_cards] == [outer_card.id]
+        assert stored_deck.outer_cards[0].deck.id == stored_deck.id
+
+
+def test_database_restricts_deleting_a_non_empty_deck(sqlite_engine: Engine) -> None:
+    deck = Deck(name="Lesson 14")
+    outer_card = OuterCard(
+        deck_id=deck.id,
+        term="予定",
+        meaning="預定",
+    )
+
+    with Session(sqlite_engine) as session:
+        session.add(deck)
+        session.add(outer_card)
+        session.commit()
+        with pytest.raises(IntegrityError):
+            session.execute(delete(Deck).where(Deck.id == deck.id))
+            session.commit()
+
+
 def test_uuid_defaults_optional_fields_and_persistence(sqlite_engine: Engine) -> None:
-    outer_card = OuterCard(term="スケジュール", meaning="行程、計畫")
+    outer_card = OuterCard(
+        deck_id=TEST_DECK_ID,
+        term="スケジュール",
+        meaning="行程、計畫",
+    )
 
     assert isinstance(outer_card.id, UUID)
     assert outer_card.sort_order == 0
@@ -46,7 +95,7 @@ def test_uuid_defaults_optional_fields_and_persistence(sqlite_engine: Engine) ->
 
 
 def test_inner_card_defaults_and_relationship(sqlite_engine: Engine) -> None:
-    outer_card = OuterCard(term="経験", meaning="經驗")
+    outer_card = OuterCard(deck_id=TEST_DECK_ID, term="経験", meaning="經驗")
     inner_card = InnerCard(
         outer_card_id=outer_card.id,
         expression="経験を積む",
@@ -82,7 +131,21 @@ def test_required_and_optional_database_columns(sqlite_engine: Engine) -> None:
     outer_columns = {column["name"]: column for column in inspector.get_columns("outer_cards")}
     inner_columns = {column["name"]: column for column in inspector.get_columns("inner_cards")}
 
-    for column_name in ("id", "term", "meaning", "sort_order", "created_at", "updated_at"):
+    deck_columns = {column["name"]: column for column in inspector.get_columns("decks")}
+
+    for column_name in ("id", "name", "sort_order", "created_at", "updated_at"):
+        assert deck_columns[column_name]["nullable"] is False
+    assert deck_columns["description"]["nullable"] is True
+
+    for column_name in (
+        "id",
+        "deck_id",
+        "term",
+        "meaning",
+        "sort_order",
+        "created_at",
+        "updated_at",
+    ):
         assert outer_columns[column_name]["nullable"] is False
     for column_name in ("reading", "part_of_speech", "jlpt_level", "notes"):
         assert outer_columns[column_name]["nullable"] is True
@@ -103,6 +166,7 @@ def test_required_and_optional_database_columns(sqlite_engine: Engine) -> None:
 
 def test_updated_at_changes_on_orm_update(sqlite_engine: Engine) -> None:
     outer_card = OuterCard(
+        deck_id=TEST_DECK_ID,
         term="確認",
         meaning="確認",
         updated_at=datetime(2000, 1, 1, tzinfo=UTC),
@@ -137,7 +201,7 @@ def test_inner_card_requires_an_existing_outer_card(sqlite_engine: Engine) -> No
 
 
 def test_orm_cascade_deletes_inner_cards(sqlite_engine: Engine) -> None:
-    outer_card = OuterCard(term="必要", meaning="必要")
+    outer_card = OuterCard(deck_id=TEST_DECK_ID, term="必要", meaning="必要")
     inner_card = InnerCard(
         outer_card_id=outer_card.id,
         expression="必要になる",
@@ -162,7 +226,7 @@ def test_orm_cascade_deletes_inner_cards(sqlite_engine: Engine) -> None:
 
 
 def test_database_cascade_deletes_inner_cards(sqlite_engine: Engine) -> None:
-    outer_card = OuterCard(term="予定", meaning="預定")
+    outer_card = OuterCard(deck_id=TEST_DECK_ID, term="予定", meaning="預定")
     inner_card = InnerCard(
         outer_card_id=outer_card.id,
         expression="予定を変更する",
@@ -191,6 +255,9 @@ def test_sort_order_indexes_are_non_unique(sqlite_engine: Engine) -> None:
     outer_index = outer_indexes["ix_outer_cards_sort_order"]
     assert outer_index["column_names"] == ["sort_order"]
     assert outer_index["unique"] == 0
+    deck_outer_index = outer_indexes["ix_outer_cards_deck_id_sort_order"]
+    assert deck_outer_index["column_names"] == ["deck_id", "sort_order"]
+    assert deck_outer_index["unique"] == 0
 
     inner_index = inner_indexes["ix_inner_cards_outer_card_id_sort_order"]
     assert inner_index["column_names"] == ["outer_card_id", "sort_order"]
@@ -198,7 +265,7 @@ def test_sort_order_indexes_are_non_unique(sqlite_engine: Engine) -> None:
 
 
 def test_relationship_query_returns_inner_cards_in_the_deck(sqlite_engine: Engine) -> None:
-    outer_card = OuterCard(term="変更", meaning="變更")
+    outer_card = OuterCard(deck_id=TEST_DECK_ID, term="変更", meaning="變更")
     first = InnerCard(
         outer_card_id=outer_card.id,
         expression="予定を変更する",

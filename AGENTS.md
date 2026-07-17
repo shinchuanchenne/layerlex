@@ -21,6 +21,8 @@ preference. Stage 7A adds the global ordered inner-card collection API, and Stag
 adds independent ordered inner-card review. Stage 8A adds seeded, URL-restorable outer
 review shuffle, and Stage 8B applies the same complete-round model to inner review.
 Stage 9 adds guarded ArrowLeft, ArrowRight, and Space shortcuts to both review pages.
+Stage 11A adds persistent decks, assigns every outer card to exactly one deck, and keeps
+deck frontend management and deck-scoped review outside that backend-only iteration.
 Keep future changes narrowly aligned with the requested iteration.
 
 ## Architecture conventions
@@ -132,9 +134,19 @@ Keep future changes narrowly aligned with the requested iteration.
   repository-root `.env` through `envDir`.
 - Expose backend application routes under `/api/v1`. Keep `/health` unversioned for
   infrastructure liveness checks.
+- Deck CRUD routes live at `/api/v1/decks`. A deck contains zero or more outer cards;
+  every outer card belongs to exactly one deck, while inner cards inherit that
+  membership and must not receive a separate `deck_id`.
+- Deck lists use stable ordering by `sort_order`, `created_at`, then `id`. Deck names are
+  required after trimming, blank optional descriptions become `null`, and non-empty
+  decks return HTTP 409 on deletion. Never cascade deck deletion to outer cards.
 - Outer-card CRUD routes live at `/api/v1/outer-cards`. Keep API request/response schemas
   separate from SQLModel table models, and never include inner-card content in the
   outer-card list or retrieve responses unless a later contract explicitly requests it.
+- Outer-card creation requires a valid `deck_id`, read responses include it, and PATCH
+  may move an outer card between decks without changing any inner-card parent IDs.
+  `GET /api/v1/outer-cards` accepts an optional `deck_id` filter; omitting it preserves
+  the global collection and its existing order.
 - Create and list inner cards at
   `/api/v1/outer-cards/{outer_card_id}/inner-cards`. Retrieve, update, and delete a
   known inner card at `/api/v1/inner-cards/{inner_card_id}`. The parent relationship is
@@ -142,6 +154,9 @@ Keep future changes narrowly aligned with the requested iteration.
 - Normalize API strings at the schema boundary: trim all strings, reject blank required
   values, and convert blank optional strings to `null`.
 - Outer-card lists use stable ordering by `sort_order`, `created_at`, then `id`.
+- Keep both the global outer-card `sort_order` index and the non-unique
+  `(deck_id, sort_order)` index used by deck-scoped lists. Do not make `sort_order`
+  unique.
 - Parent-scoped inner-card lists use stable ordering by inner-card `sort_order`,
   `created_at`, then `id`.
 - The global `GET /api/v1/inner-cards` collection groups and orders by outer-card
@@ -167,6 +182,9 @@ Keep future changes narrowly aligned with the requested iteration.
 - `OuterCard.inner_cards` requires ORM delete-orphan cascade, and
   `InnerCard.outer_card_id` requires database `ON DELETE CASCADE`. Do not weaken either
   side without a new requirement and migration.
+- `OuterCard.deck_id` requires database `ON DELETE RESTRICT`. The Stage 11A migration
+  must preserve existing outer and inner cards by assigning them to the
+  `Uncategorized` deck before making `deck_id` non-nullable.
 - Keep SQLModel types, constraints, and migrations portable where practical so a future
   move to PostgreSQL on Amazon RDS remains possible.
 - The initial AWS target is one backend deployment on one EC2 instance, with the SQLite

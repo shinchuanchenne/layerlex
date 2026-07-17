@@ -43,6 +43,9 @@ def run_migrations_online() -> None:
 
             with context.begin_transaction():
                 context.run_migrations()
+
+            if connection.dialect.name == "sqlite":
+                connection.exec_driver_sql("PRAGMA foreign_keys=ON")
     finally:
         connectable.dispose()
 

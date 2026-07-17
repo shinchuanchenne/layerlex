@@ -5,9 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
-from app.api.errors import OUTER_CARD_NOT_FOUND
+from app.api.errors import DECK_NOT_FOUND, OUTER_CARD_NOT_FOUND
 from app.core.database import get_session
-from app.models import OuterCard
+from app.models import Deck, OuterCard
 from app.schemas.outer_card import (
     OuterCardCreate,
     OuterCardListResponse,
@@ -26,14 +26,23 @@ def _get_outer_card_or_404(outer_card_id: UUID, session: Session) -> OuterCard:
     return outer_card
 
 
+def _get_deck_or_404(deck_id: UUID, session: Session) -> Deck:
+    deck = session.get(Deck, deck_id)
+    if deck is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DECK_NOT_FOUND)
+    return deck
+
+
 @router.post(
     "",
     response_model=OuterCardRead,
     status_code=status.HTTP_201_CREATED,
+    responses={status.HTTP_404_NOT_FOUND: {"description": DECK_NOT_FOUND}},
     summary="Create an outer flashcard",
-    description="Create one vocabulary-word card without any inner-card content.",
+    description="Create one vocabulary-word card in an existing deck.",
 )
 def create_outer_card(payload: OuterCardCreate, session: SessionDependency) -> OuterCard:
+    _get_deck_or_404(payload.deck_id, session)
     outer_card = OuterCard(**payload.model_dump())
     session.add(outer_card)
     session.commit()
@@ -44,6 +53,7 @@ def create_outer_card(payload: OuterCardCreate, session: SessionDependency) -> O
 @router.get(
     "",
     response_model=OuterCardListResponse,
+    responses={status.HTTP_404_NOT_FOUND: {"description": DECK_NOT_FOUND}},
     summary="List outer flashcards",
     description=(
         "Return a stable, paginated list ordered by sort order, creation time, and ID. "
@@ -55,6 +65,7 @@ def list_outer_cards(
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     search: str | None = None,
+    deck_id: UUID | None = None,
 ) -> OuterCardListResponse:
     search_value = search.strip() if search is not None else ""
     search_filter = None
@@ -68,6 +79,10 @@ def list_outer_cards(
 
     count_statement = select(func.count()).select_from(OuterCard)
     list_statement = select(OuterCard)
+    if deck_id is not None:
+        _get_deck_or_404(deck_id, session)
+        count_statement = count_statement.where(OuterCard.deck_id == deck_id)
+        list_statement = list_statement.where(OuterCard.deck_id == deck_id)
     if search_filter is not None:
         count_statement = count_statement.where(search_filter)
         list_statement = list_statement.where(search_filter)
@@ -109,6 +124,8 @@ def update_outer_card(
 ) -> OuterCard:
     outer_card = _get_outer_card_or_404(outer_card_id, session)
     updates = payload.model_dump(exclude_unset=True)
+    if "deck_id" in updates:
+        _get_deck_or_404(updates["deck_id"], session)
     changed = False
 
     for field_name, value in updates.items():

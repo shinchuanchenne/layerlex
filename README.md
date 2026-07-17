@@ -4,10 +4,10 @@ LayerLex is a dual-layer vocabulary flashcard application. An outer card teaches
 word; its inner cards teach natural usage through collocations, phrases, patterns, and
 examples.
 
-This repository currently contains the project foundation, outer and inner card database
-models, CRUD APIs and management pages for both card layers, and the basic ordered outer
-and inner flashcard review interfaces. It includes intentional SQLite file storage,
-Alembic migrations, and development tooling.
+This repository currently contains the project foundation, persistent deck and
+flashcard models, deck and card CRUD APIs, management pages for both card layers, and
+ordered and shuffled outer- and inner-card review interfaces. It includes intentional
+SQLite file storage, Alembic migrations, and development tooling.
 
 ## Stack
 
@@ -90,15 +90,25 @@ Vite only exposes frontend variables prefixed with `VITE_`. Do not put secrets i
 
 ## Database schema
 
-Alembic revision `20260714_0002` adds two tables:
+Alembic revision `20260714_0002` adds the original flashcard tables. Revision
+`20260717_0003` adds persistent decks and assigns every outer card to exactly one deck:
 
+- `decks`: a named outer-card collection with an optional description, display order,
+  UUID identifier, and UTC timestamps.
 - `outer_cards`: the vocabulary term, optional reading and metadata, meaning, display
-  order, UUID identifier, and UTC timestamps.
+  order, required parent deck, UUID identifier, and UTC timestamps.
 - `inner_cards`: a collocation, phrase, pattern, or example belonging to exactly one
   outer card, with its own display order, UUID identifier, and UTC timestamps.
 
+When revision `20260717_0003` upgrades an existing database, it creates one deck named
+`Uncategorized` and assigns every existing outer card to it before making `deck_id`
+required. Existing inner cards remain attached to their outer cards.
+
 Deleting an outer card deletes its inner cards at both the ORM and database levels.
-`outer_cards.sort_order` has a non-unique index, and
+Deleting a deck is restricted while it contains any outer cards. Inner cards inherit
+their deck through their outer card and do not have a separate `deck_id`.
+`outer_cards.sort_order` and `decks.sort_order` have non-unique indexes,
+`outer_cards(deck_id, sort_order)` has a non-unique composite index, and
 `inner_cards(outer_card_id, sort_order)` has a non-unique composite index.
 
 SQLite does not provide a native UUID column. SQLAlchemy's portable `Uuid` type stores
@@ -125,6 +135,38 @@ WAL produces temporary `-wal` and `-shm` files beside the database. They are run
 data and are ignored by Git. The database and all WAL-related files must remain on the
 same local EBS-backed filesystem in production.
 
+## Deck API
+
+Deck endpoints are available under `/api/v1/decks`:
+
+| Method | Path | Result |
+| --- | --- | --- |
+| `POST` | `/api/v1/decks` | Create a deck and return HTTP 201 |
+| `GET` | `/api/v1/decks` | List and paginate decks |
+| `GET` | `/api/v1/decks/{id}` | Retrieve one deck |
+| `PATCH` | `/api/v1/decks/{id}` | Partially update one deck |
+| `DELETE` | `/api/v1/decks/{id}` | Delete an empty deck and return HTTP 204 |
+
+Create a deck:
+
+```bash
+curl --request POST http://localhost:8000/api/v1/decks \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "name": "Lesson 13",
+    "description": "Vocabulary from lesson 13",
+    "sort_order": 13
+  }'
+```
+
+Deck names are trimmed and must not be blank. Blank optional descriptions become
+`null`; unknown fields are rejected. Deck lists are ordered by `sort_order`,
+`created_at`, then `id`, with `offset` and `limit` pagination.
+
+An empty deck can be deleted. Deleting a deck that still contains outer cards returns
+HTTP 409 with `{"detail":"Deck contains outer cards"}` and does not delete or move any
+cards. Move or delete its outer cards first.
+
 ## Outer-card API
 
 The outer-card endpoints are available under `/api/v1/outer-cards`:
@@ -143,6 +185,7 @@ Create a card:
 curl --request POST http://localhost:8000/api/v1/outer-cards \
   --header 'Content-Type: application/json' \
   --data '{
+    "deck_id": "{deck_id}",
     "term": "スケジュール",
     "reading": "スケジュール",
     "part_of_speech": "名詞",
@@ -157,22 +200,27 @@ List or search cards:
 ```bash
 curl 'http://localhost:8000/api/v1/outer-cards?offset=0&limit=50'
 curl 'http://localhost:8000/api/v1/outer-cards?search=スケジュール'
+curl 'http://localhost:8000/api/v1/outer-cards?deck_id={deck_id}'
 ```
 
-Update and delete a card by replacing `{id}` with its UUID:
+Creating an outer card requires an existing deck UUID. Read responses include
+`deck_id`. Move a card and all of its inner cards to another deck by patching
+`deck_id`; the inner cards remain attached to the same outer card:
 
 ```bash
 curl --request PATCH http://localhost:8000/api/v1/outer-cards/{id} \
   --header 'Content-Type: application/json' \
-  --data '{"meaning":"日程"}'
+  --data '{"deck_id":"{new_deck_id}"}'
 
 curl --request DELETE http://localhost:8000/api/v1/outer-cards/{id}
 ```
 
 All string inputs are trimmed. Blank required fields are rejected, while blank optional
 strings become `null`. List results are ordered by `sort_order`, `created_at`, then `id`.
-The list and retrieve responses intentionally omit inner-card content. Interactive API
-documentation and request schemas are available at <http://localhost:8000/docs>.
+The optional `deck_id` query parameter filters before count and pagination; omitting it
+preserves the global list. The list and retrieve responses intentionally omit
+inner-card content. Interactive API documentation and request schemas are available at
+<http://localhost:8000/docs>.
 
 ## Inner-card API
 
@@ -258,6 +306,11 @@ when only one outer card's usage content is needed.
 Start the backend on port 8000 and the frontend on port 5173, then open
 <http://localhost:5173/cards>. The selected outer card is stored in the URL as
 `/cards/{outerCardId}`, so refreshing or sharing the address preserves that selection.
+
+Stage 11A changes the backend outer-card contract to require `deck_id`. Deck-aware
+frontend controls are intentionally deferred to Stage 11B, so use the FastAPI
+documentation for deck and outer-card creation or movement until that frontend stage is
+implemented.
 
 The responsive management page provides:
 
@@ -522,6 +575,7 @@ Run only one card layer's API tests:
 
 ```bash
 cd backend
+python -m pytest tests/test_decks_api.py
 python -m pytest tests/test_outer_cards_api.py
 python -m pytest tests/test_inner_cards_api.py
 ```
