@@ -31,6 +31,7 @@ import {
   deterministicShuffle,
   generateShuffleSeed,
 } from "../lib/reviewShuffle";
+import { CONTINUOUS_LISTENING_INTER_CARD_PAUSE_MS } from "../lib/useContinuousListening";
 import { installFakeSpeechSynthesis } from "../test/fakeSpeechSynthesis";
 
 vi.mock("../lib/innerReview", async (importOriginal) => {
@@ -278,6 +279,113 @@ describe("inner review bilingual speech", () => {
       );
       view.unmount();
       expect(installed.synthesis.cancel).toHaveBeenCalledTimes(1);
+    } finally {
+      installed.restore();
+    }
+  });
+});
+
+describe("inner review continuous listening", () => {
+  it("speaks meaning then expression, advances in global order, and never speaks parent context", async () => {
+    const installed = installFakeSpeechSynthesis();
+    try {
+      renderApp("/review/inner/" + firstInner.id);
+      await screen.findByLabelText("Inner review progress");
+      vi.useFakeTimers();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Start continuous listening" }),
+      );
+      expect(installed.synthesis.spokenUtterances[0].text).toBe(
+        firstInner.meaning,
+      );
+
+      act(() => installed.synthesis.finishCurrent());
+      await act(() => vi.advanceTimersByTimeAsync(BILINGUAL_SPEECH_PAUSE_MS));
+      expect(installed.synthesis.spokenUtterances.at(-1)?.text).toBe(
+        firstInner.expression,
+      );
+      act(() => installed.synthesis.finishCurrent());
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(() =>
+        vi.advanceTimersByTimeAsync(CONTINUOUS_LISTENING_INTER_CARD_PAUSE_MS),
+      );
+
+      expect(screen.getByLabelText("Current route")).toHaveTextContent(
+        "/review/inner/" + secondInner.id,
+      );
+      expect(installed.synthesis.spokenUtterances.at(-1)?.text).toBe(
+        secondInner.meaning,
+      );
+      expect(
+        installed.synthesis.spokenUtterances.map((utterance) => utterance.text),
+      ).not.toContain(firstOuter.term);
+      expect(
+        installed.synthesis.spokenUtterances.map((utterance) => utterance.text),
+      ).not.toContain(secondOuter.term);
+    } finally {
+      vi.useRealTimers();
+      installed.restore();
+    }
+  });
+
+  it("uses the deck-scoped shuffled queue, preserves its seed, and stops on directory navigation", async () => {
+    const installed = installFakeSpeechSynthesis();
+    try {
+      const scopedCards = [firstInner, secondInner];
+      vi.mocked(fetchCompleteDeckScopedInnerReviewDeck).mockResolvedValue({
+        cards: scopedCards,
+        parents: outerDeck,
+      });
+      const shuffled = deterministicShuffle(scopedCards, 321);
+      renderApp(
+        `/review/decks/${selectedDeck.id}/inner/${shuffled[0].id}?mode=shuffle&seed=321`,
+      );
+      await screen.findByLabelText("Inner review progress");
+      vi.useFakeTimers();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Start continuous listening" }),
+      );
+
+      const destination = screen.getByRole("link", {
+        name: new RegExp(shuffled[1].expression),
+      });
+      fireEvent.click(destination);
+
+      expect(
+        screen.getByText("Continuous listening stopped."),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Current route")).toHaveTextContent(
+        `/inner/${shuffled[1].id}?mode=shuffle&seed=321`,
+      );
+      expect(installed.synthesis.cancel).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+      installed.restore();
+    }
+  });
+
+  it("keeps a missing-parent card playable and returns continuous state to idle after remount", async () => {
+    const installed = installFakeSpeechSynthesis();
+    try {
+      const route = "/review/inner/" + missingParentInner.id;
+      const view = renderApp(route);
+      await screen.findByLabelText("Inner review progress");
+      fireEvent.click(
+        screen.getByRole("button", { name: "Start continuous listening" }),
+      );
+      expect(installed.synthesis.spokenUtterances[0].text).toBe(
+        missingParentInner.meaning,
+      );
+      view.unmount();
+
+      renderApp(route);
+      await screen.findByLabelText("Inner review progress");
+      expect(
+        screen.getByText("Ready for continuous listening."),
+      ).toBeInTheDocument();
+      expect(installed.synthesis.spokenUtterances).toHaveLength(1);
     } finally {
       installed.restore();
     }

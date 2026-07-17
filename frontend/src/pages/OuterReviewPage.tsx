@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Link,
   Navigate,
@@ -13,6 +13,7 @@ import {
   type OuterReviewDisplayMode,
 } from "../components/OuterReviewCard";
 import { BilingualSpeechControls } from "../components/BilingualSpeechControls";
+import { ContinuousListeningControls } from "../components/ContinuousListeningControls";
 import { OuterReviewDirectory } from "../components/OuterReviewDirectory";
 import { OuterReviewInnerContent } from "../components/OuterReviewInnerContent";
 import { ReviewKeyboardHelp } from "../components/ReviewKeyboardHelp";
@@ -31,6 +32,10 @@ import {
   generateShuffleSeed,
   parseShuffleSeed,
 } from "../lib/reviewShuffle";
+import {
+  type ListeningItem,
+  useContinuousListening,
+} from "../lib/useContinuousListening";
 
 const EMPTY_OUTER_REVIEW_DECK: OuterCard[] = [];
 
@@ -101,6 +106,34 @@ export function OuterReviewPage() {
     ? deck.findIndex((card) => card.id === outerCardId)
     : -1;
   const currentCard = currentIndex >= 0 ? deck[currentIndex] : undefined;
+  const listeningItems = useMemo<ListeningItem[]>(
+    () =>
+      deck.map((card) => ({
+        id: card.id,
+        label: card.term,
+        chineseText: card.meaning,
+        japaneseText: card.term,
+      })),
+    [deck],
+  );
+  const navigateToReviewIndex = useCallback(
+    (index: number) => {
+      const card = deck[index];
+      if (card) {
+        navigate(buildReviewUrl(card.id, activeShuffleSeed, deckId));
+      }
+    },
+    [activeShuffleSeed, deck, deckId, navigate],
+  );
+  const continuousListening = useContinuousListening({
+    items: listeningItems,
+    currentIndex,
+    roundIdentity: [
+      deckId ?? "global",
+      isShuffled ? `shuffle-${activeShuffleSeed}` : "ordered",
+    ].join(":"),
+    navigateToIndex: navigateToReviewIndex,
+  });
   const recoveryCardQuery = useQuery({
     queryKey: outerCardKeys.detail(outerCardId ?? ""),
     queryFn: () => retrieveOuterCard(outerCardId ?? ""),
@@ -152,13 +185,12 @@ export function OuterReviewPage() {
   }
 
   function goToIndex(index: number) {
-    const card = deck[index];
-    if (card) {
-      navigate(buildReviewUrl(card.id, activeShuffleSeed, deckId));
-    }
+    continuousListening.stopForNavigation();
+    navigateToReviewIndex(index);
   }
 
   function selectOrderedMode() {
+    continuousListening.stopForNavigation();
     if (currentCard) {
       navigate(buildReviewUrl(currentCard.id, undefined, deckId));
     }
@@ -167,6 +199,7 @@ export function OuterReviewPage() {
   function startShuffledRound(forceNewRound: boolean) {
     if (isShuffled && !forceNewRound) return;
 
+    continuousListening.stopForNavigation();
     let nextSeed = generateShuffleSeed();
     if (nextSeed === activeShuffleSeed) nextSeed = (nextSeed + 1) >>> 0;
     const shuffledDeck = deterministicShuffle(orderedDeck, nextSeed);
@@ -196,6 +229,7 @@ export function OuterReviewPage() {
             void deckQuery.refetch();
           }
         }}
+        onNavigate={continuousListening.stopForNavigation}
       />
 
       <section
@@ -457,6 +491,24 @@ export function OuterReviewPage() {
               chineseText={currentCard.meaning}
               japaneseText={currentCard.term}
               itemLabel={currentCard.term}
+            />
+
+            <ContinuousListeningControls
+              phase={continuousListening.state.phase}
+              item={continuousListening.item}
+              currentPosition={
+                continuousListening.state.activeIndex >= 0
+                  ? continuousListening.state.activeIndex + 1
+                  : currentIndex + 1
+              }
+              total={deck.length}
+              canStart={continuousListening.canStart}
+              onStart={continuousListening.start}
+              onPause={continuousListening.pause}
+              onResume={continuousListening.resume}
+              onStop={continuousListening.stop}
+              onRetry={continuousListening.retry}
+              errorMessage={continuousListening.state.errorMessage}
             />
 
             <ReviewKeyboardHelp

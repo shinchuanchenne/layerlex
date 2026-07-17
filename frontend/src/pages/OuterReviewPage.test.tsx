@@ -36,6 +36,7 @@ import {
   deterministicShuffle,
   generateShuffleSeed,
 } from "../lib/reviewShuffle";
+import { CONTINUOUS_LISTENING_INTER_CARD_PAUSE_MS } from "../lib/useContinuousListening";
 import { installFakeSpeechSynthesis } from "../test/fakeSpeechSynthesis";
 
 vi.mock("../lib/outerReview", async (importOriginal) => {
@@ -487,6 +488,136 @@ describe("outer review bilingual speech", () => {
       expect(screen.getByLabelText("Current route")).toHaveTextContent(
         "?mode=shuffle&seed=20260714",
       );
+    } finally {
+      installed.restore();
+    }
+  });
+});
+
+describe("outer review continuous listening", () => {
+  it("starts from the current ordered card, advances once, and completes at the final card", async () => {
+    const installed = installFakeSpeechSynthesis();
+    try {
+      renderApp("/review/outer/" + secondCard.id);
+      await screen.findByLabelText("Review progress");
+      vi.useFakeTimers();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Start continuous listening" }),
+      );
+      expect(installed.synthesis.spokenUtterances[0].text).toBe(
+        secondCard.meaning,
+      );
+      expect(
+        screen.getByLabelText("Continuous listening progress"),
+      ).toHaveTextContent("Listening 2 / 3 · 予定");
+
+      act(() => installed.synthesis.finishCurrent());
+      await act(() => vi.advanceTimersByTimeAsync(BILINGUAL_SPEECH_PAUSE_MS));
+      expect(installed.synthesis.spokenUtterances.at(-1)?.text).toBe(
+        secondCard.term,
+      );
+      act(() => installed.synthesis.finishCurrent());
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByText("Preparing the next card…")).toBeInTheDocument();
+
+      await act(() =>
+        vi.advanceTimersByTimeAsync(CONTINUOUS_LISTENING_INTER_CARD_PAUSE_MS),
+      );
+      expect(screen.getByLabelText("Current route")).toHaveTextContent(
+        "/review/outer/" + thirdCard.id,
+      );
+      expect(installed.synthesis.spokenUtterances.at(-1)?.text).toBe(
+        thirdCard.meaning,
+      );
+
+      act(() => installed.synthesis.finishCurrent());
+      await act(() => vi.advanceTimersByTimeAsync(BILINGUAL_SPEECH_PAUSE_MS));
+      act(() => installed.synthesis.finishCurrent());
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(
+        screen.getByText("Continuous listening complete."),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Current route")).toHaveTextContent(
+        "/review/outer/" + thirdCard.id,
+      );
+    } finally {
+      vi.useRealTimers();
+      installed.restore();
+    }
+  });
+
+  it("preserves a deck-scoped shuffle seed and stops on manual navigation", async () => {
+    const installed = installFakeSpeechSynthesis();
+    try {
+      const shuffled = deterministicShuffle(deck, 321);
+      renderApp(
+        `/review/decks/${selectedDeck.id}/outer/${shuffled[0].id}?mode=shuffle&seed=321`,
+      );
+      await screen.findByLabelText("Review progress");
+      vi.useFakeTimers();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Start continuous listening" }),
+      );
+
+      act(() => installed.synthesis.finishCurrent());
+      await act(() => vi.advanceTimersByTimeAsync(BILINGUAL_SPEECH_PAUSE_MS));
+      act(() => installed.synthesis.finishCurrent());
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(() =>
+        vi.advanceTimersByTimeAsync(CONTINUOUS_LISTENING_INTER_CARD_PAUSE_MS),
+      );
+
+      expect(screen.getByLabelText("Current route")).toHaveTextContent(
+        `/outer/${shuffled[1].id}?mode=shuffle&seed=321`,
+      );
+      fireEvent.keyDown(document, { key: "ArrowRight" });
+      expect(
+        screen.getByText("Continuous listening stopped."),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Current route")).toHaveTextContent(
+        "?mode=shuffle&seed=321",
+      );
+    } finally {
+      vi.useRealTimers();
+      installed.restore();
+    }
+  });
+
+  it("keeps display and inner-content controls independent while enforcing single-session ownership", async () => {
+    const installed = installFakeSpeechSynthesis();
+    try {
+      renderApp("/review/outer/" + firstCard.id);
+      await screen.findByLabelText("Review progress");
+      fireEvent.click(
+        screen.getByRole("button", { name: "Start continuous listening" }),
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Show both" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Show inner content" }),
+      );
+      expect(screen.getByText("Speaking Chinese…")).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Play Chinese then Japanese for 経験",
+        }),
+      );
+      expect(
+        screen.getByText("Continuous listening stopped."),
+      ).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Start continuous listening" }),
+      );
+      expect(screen.getByText("Playback stopped.")).toBeInTheDocument();
     } finally {
       installed.restore();
     }

@@ -16,6 +16,7 @@ interface InnerReviewDirectoryProps {
   isLoading: boolean;
   errorMessage?: string;
   onRetry: () => void;
+  onNavigate?: () => void;
 }
 
 export function InnerReviewDirectory({
@@ -31,6 +32,7 @@ export function InnerReviewDirectory({
   isLoading,
   errorMessage,
   onRetry,
+  onNavigate,
 }: InnerReviewDirectoryProps) {
   return (
     <aside
@@ -51,12 +53,14 @@ export function InnerReviewDirectory({
         >
           <Link
             to={managementPath}
+            onClick={onNavigate}
             className="inline-flex min-h-11 items-center text-sm font-semibold text-violet-200 underline-offset-4 hover:underline focus:ring-2 focus:ring-violet-300 focus:outline-none"
           >
             Card management
           </Link>
           <Link
             to={outerReviewPath}
+            onClick={onNavigate}
             className="inline-flex min-h-11 items-center text-sm font-semibold text-violet-200 underline-offset-4 hover:underline focus:ring-2 focus:ring-violet-300 focus:outline-none"
           >
             {deckName ? "Outer review for this deck" : "Outer review"}
@@ -107,6 +111,7 @@ export function InnerReviewDirectory({
                 <li key={card.id}>
                   <Link
                     to={reviewBasePath + "/" + card.id + roundQuery}
+                    onClick={onNavigate}
                     aria-current={isCurrent ? "page" : undefined}
                     className={
                       "block rounded-xl border p-3 transition focus:ring-2 focus:ring-violet-300 focus:outline-none " +

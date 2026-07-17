@@ -25,7 +25,8 @@ Stage 11A adds persistent decks and assigns every outer card to exactly one deck
 Stage 11B makes `/decks` the single deck-aware management workspace. Stage 11C adds
 deck-scoped outer and inner review while preserving both global review modes. Stage 12A
 adds explicit single-card Chinese-to-Japanese browser speech playback to all four
-review contexts.
+review contexts. Stage 12B adds ephemeral continuous listening over each page's active
+ordered or seeded-shuffle queue.
 Keep future changes narrowly aligned with the requested iteration.
 
 ## Architecture conventions
@@ -187,6 +188,21 @@ Keep future changes narrowly aligned with the requested iteration.
   speech is unsupported, and normalize playback errors without logging expected
   cancellation noise. Automated tests must use controllable fake speech APIs and never
   produce real audio.
+- Continuous listening is page-owned orchestration over the already derived active
+  review queue. Map outer or inner cards to domain-neutral listening items, begin at the
+  routed card, reuse the shared bilingual controller, wait a named inter-card pause,
+  navigate through the existing URL builder, and stop without wrapping after the final
+  card. TanStack Query must not own the derived listening queue.
+- URL state continues to own scope, current card, review order, and shuffle seed.
+  Continuous phase and progress are ephemeral and must return to idle after refresh;
+  never persist or autoplay them. Orchestrator-owned next-card navigation may continue
+  playback, while manual buttons, arrows, directory selection, browser history, route
+  changes, order changes, new shuffle rounds, missing source cards, and unmount stop it.
+- Pause uses deterministic application semantics: cancel the utterance or timer,
+  remember the current queue index, and restart the same card from Chinese on Resume.
+  Single-card and continuous controls share the one-active-LayerLex-session boundary,
+  including the pause between cards, so starting either mode stops the other and both
+  interfaces reflect external cancellation.
 - Local frontend development uses the Vite `/api` proxy to port 8000. Use
   `VITE_API_BASE_URL` only when an explicit API origin is required; Vite reads the
   repository-root `.env` through `envDir`.

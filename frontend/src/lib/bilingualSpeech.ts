@@ -41,6 +41,7 @@ interface SpeechPlaybackControllerOptions {
   onStateChange: (state: SpeechPlaybackState) => void;
   pauseMs?: number;
   runtime?: SpeechRuntime;
+  retainOwnershipAfterCompletion?: boolean;
 }
 
 interface ActiveSession {
@@ -117,6 +118,7 @@ export function createBilingualSpeechController({
   onStateChange,
   pauseMs = BILINGUAL_SPEECH_PAUSE_MS,
   runtime = createBrowserRuntime(),
+  retainOwnershipAfterCompletion = false,
 }: SpeechPlaybackControllerOptions): SpeechPlaybackController {
   const synthesis = runtime.speechSynthesis;
   const supported = Boolean(synthesis && runtime.createUtterance);
@@ -193,7 +195,10 @@ export function createBilingualSpeechController({
     const session = activeSession;
     activeSession = undefined;
     session?.resolve();
-    if (stopActiveLayerLexController === stopFromAnotherController) {
+    if (
+      !retainOwnershipAfterCompletion &&
+      stopActiveLayerLexController === stopFromAnotherController
+    ) {
       stopActiveLayerLexController = undefined;
     }
     onStateChange({ phase: "completed" });
@@ -301,7 +306,12 @@ export function createBilingualSpeechController({
   }
 
   function stop() {
-    if (!activeSession) return;
+    if (
+      !activeSession &&
+      stopActiveLayerLexController !== stopFromAnotherController
+    ) {
+      return;
+    }
     cancelCurrentSession(true);
   }
 

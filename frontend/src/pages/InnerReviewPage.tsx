@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Link,
   Navigate,
@@ -13,6 +13,7 @@ import {
   type InnerReviewDisplayMode,
 } from "../components/InnerReviewCard";
 import { BilingualSpeechControls } from "../components/BilingualSpeechControls";
+import { ContinuousListeningControls } from "../components/ContinuousListeningControls";
 import { InnerReviewDirectory } from "../components/InnerReviewDirectory";
 import { ReviewKeyboardHelp } from "../components/ReviewKeyboardHelp";
 import { getApiErrorMessage } from "../lib/api";
@@ -35,6 +36,10 @@ import {
   generateShuffleSeed,
   parseShuffleSeed,
 } from "../lib/reviewShuffle";
+import {
+  type ListeningItem,
+  useContinuousListening,
+} from "../lib/useContinuousListening";
 
 const EMPTY_INNER_REVIEW_DECK: InnerCard[] = [];
 
@@ -126,6 +131,34 @@ export function InnerReviewPage() {
     ? deck.findIndex((card) => card.id === innerCardId)
     : -1;
   const currentCard = currentIndex >= 0 ? deck[currentIndex] : undefined;
+  const listeningItems = useMemo<ListeningItem[]>(
+    () =>
+      deck.map((card) => ({
+        id: card.id,
+        label: card.expression,
+        chineseText: card.meaning,
+        japaneseText: card.expression,
+      })),
+    [deck],
+  );
+  const navigateToReviewIndex = useCallback(
+    (index: number) => {
+      const card = deck[index];
+      if (card) {
+        navigate(buildReviewUrl(card.id, activeShuffleSeed, deckId));
+      }
+    },
+    [activeShuffleSeed, deck, deckId, navigate],
+  );
+  const continuousListening = useContinuousListening({
+    items: listeningItems,
+    currentIndex,
+    roundIdentity: [
+      deckId ?? "global",
+      isShuffled ? `shuffle-${activeShuffleSeed}` : "ordered",
+    ].join(":"),
+    navigateToIndex: navigateToReviewIndex,
+  });
   const currentParent = currentCard
     ? parentsById.get(currentCard.outer_card_id)
     : undefined;
@@ -193,13 +226,12 @@ export function InnerReviewPage() {
   }
 
   function goToIndex(index: number) {
-    const card = deck[index];
-    if (card) {
-      navigate(buildReviewUrl(card.id, activeShuffleSeed, deckId));
-    }
+    continuousListening.stopForNavigation();
+    navigateToReviewIndex(index);
   }
 
   function selectOrderedMode() {
+    continuousListening.stopForNavigation();
     if (currentCard) {
       navigate(buildReviewUrl(currentCard.id, undefined, deckId));
     }
@@ -208,6 +240,7 @@ export function InnerReviewPage() {
   function startShuffledRound(forceNewRound: boolean) {
     if (isShuffled && !forceNewRound) return;
 
+    continuousListening.stopForNavigation();
     let nextSeed = generateShuffleSeed();
     if (nextSeed === activeShuffleSeed) nextSeed = (nextSeed + 1) >>> 0;
     const shuffledDeck = deterministicShuffle(orderedDeck, nextSeed);
@@ -240,6 +273,7 @@ export function InnerReviewPage() {
             void globalDeckQuery.refetch();
           }
         }}
+        onNavigate={continuousListening.stopForNavigation}
       />
 
       <section
@@ -496,6 +530,25 @@ export function InnerReviewPage() {
               chineseText={currentCard.meaning}
               japaneseText={currentCard.expression}
               itemLabel={currentCard.expression}
+              accent="violet"
+            />
+
+            <ContinuousListeningControls
+              phase={continuousListening.state.phase}
+              item={continuousListening.item}
+              currentPosition={
+                continuousListening.state.activeIndex >= 0
+                  ? continuousListening.state.activeIndex + 1
+                  : currentIndex + 1
+              }
+              total={deck.length}
+              canStart={continuousListening.canStart}
+              onStart={continuousListening.start}
+              onPause={continuousListening.pause}
+              onResume={continuousListening.resume}
+              onStop={continuousListening.stop}
+              onRetry={continuousListening.retry}
+              errorMessage={continuousListening.state.errorMessage}
               accent="violet"
             />
 

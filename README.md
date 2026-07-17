@@ -7,8 +7,8 @@ examples.
 This repository currently contains the project foundation, persistent deck and
 flashcard models, deck and card CRUD APIs, management pages for both card layers, and
 ordered and shuffled outer- and inner-card review interfaces with explicit single-card
-Chinese-to-Japanese browser speech playback. It includes intentional SQLite file
-storage, Alembic migrations, and development tooling.
+and continuous Chinese-to-Japanese browser speech playback. It includes intentional
+SQLite file storage, Alembic migrations, and development tooling.
 
 ## Stack
 
@@ -625,13 +625,62 @@ overlapping sessions. Playback is also cancelled when the selected card, Ordered
 Shuffle mode, shuffle seed, review route, or page changes. Switching Flip/Show both for
 the same card keeps the current sequence playing.
 
-Speech controls do not flip or reveal the card, navigate, advance progress, alter the
+Single-card speech controls do not flip or reveal the card, navigate, advance progress, alter the
 directory, generate a shuffle seed, show or hide inner content, change the automatic
 inner-content preference, or modify URL state. Existing ArrowLeft, ArrowRight, and
 Space shortcuts retain only their documented review actions; Stage 12A adds no audio
-shortcut. Continuous card-to-card listening, automatic next-card navigation,
-background playback, playback settings, Amazon Polly, and persistent MP3 generation
-are deferred to later stages.
+shortcut. Background playback, playback settings, Amazon Polly, and persistent MP3
+generation remain outside the browser-speech MVP.
+
+## Continuous browser listening
+
+All four outer- and inner-review contexts also provide **Start continuous listening**:
+
+```text
+current card's Chinese meaning
+→ 650 ms language pause
+→ outer term or inner expression in Japanese
+→ 1000 ms inter-card pause
+→ next card in the active queue
+```
+
+Continuous listening begins at the currently routed card and follows the same complete
+queue used by the visible directory, progress, Previous, and Next controls. Global and
+deck-scoped routes are supported in both Ordered and seeded Shuffle modes. Automatic
+navigation preserves the deck context, review mode, and existing shuffle seed; it never
+generates a new round or creates a separate audio queue. The final card plays once and
+then completes without wrapping. A one-card queue therefore plays exactly once.
+
+The controls expose Start, Pause, Resume, Stop, and Retry when those actions apply,
+along with a labelled `Listening 3 / 20` progress display and the current card label.
+Pause intentionally cancels the current browser utterance or timer. Resume restarts
+that same card from its Chinese meaning and then continues; it does not resume from the
+exact spoken word. Speech errors stop on the current card without advancing, and Retry
+begins that card again.
+
+Single-card and continuous playback are mutually exclusive and share LayerLex's
+one-session speech controller. Starting either one stops the other, including during
+the pause between cards. Manual Previous or Next, ArrowLeft or ArrowRight, directory
+selection, browser back or forward, review-order changes, New shuffled round, route
+unmount, or removal of the source card stops continuous listening. The listener's own
+next-card route change is distinguished from manual navigation so each next card speaks
+only after its route is ready.
+
+Flip, Show both, Space, manual inner-content visibility, and the automatic inner-content
+preference remain independent of listening. Continuous listening never reveals an
+answer or changes those controls. There is no audio keyboard shortcut.
+
+The URL remains the source of truth for deck scope, current card, Ordered/Shuffle mode,
+and seed. Listening phase, pause state, and progress are ephemeral React state: they are
+not written to localStorage or TanStack Query. Refresh reconstructs the review queue and
+selected card but returns listening to idle and never autoplays, preserving browser
+user-gesture rules.
+
+Like single-card playback, continuous listening uses browser-generated synthetic
+speech. Voice availability and quality depend on the browser, operating system, and
+installed voices. LayerLex does not generate audio files, call backend TTS services,
+store credentials, use Amazon Polly or S3, or continue playing after the review page is
+closed.
 
 ### Review keyboard shortcuts
 
