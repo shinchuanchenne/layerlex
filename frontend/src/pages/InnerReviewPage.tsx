@@ -373,7 +373,7 @@ export function InnerReviewPage() {
                     aria-pressed={!isShuffled}
                     onClick={selectOrderedMode}
                     className={
-                      "rounded-full px-4 py-2 text-sm font-semibold focus:ring-2 focus:ring-violet-600 focus:outline-none " +
+                      "min-h-11 rounded-full px-4 py-2 text-sm font-semibold focus:ring-2 focus:ring-violet-600 focus:outline-none " +
                       (!isShuffled
                         ? "bg-slate-950 text-white"
                         : "text-slate-600 hover:bg-slate-100")
@@ -386,7 +386,7 @@ export function InnerReviewPage() {
                     aria-pressed={isShuffled}
                     onClick={() => startShuffledRound(false)}
                     className={
-                      "rounded-full px-4 py-2 text-sm font-semibold focus:ring-2 focus:ring-violet-600 focus:outline-none " +
+                      "min-h-11 rounded-full px-4 py-2 text-sm font-semibold focus:ring-2 focus:ring-violet-600 focus:outline-none " +
                       (isShuffled
                         ? "bg-slate-950 text-white"
                         : "text-slate-600 hover:bg-slate-100")
@@ -398,7 +398,7 @@ export function InnerReviewPage() {
                 <button
                   type="button"
                   onClick={() => startShuffledRound(true)}
-                  className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:ring-2 focus:ring-violet-600 focus:outline-none"
+                  className="min-h-11 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:ring-2 focus:ring-violet-600 focus:outline-none"
                 >
                   New shuffled round
                 </button>
@@ -412,7 +412,7 @@ export function InnerReviewPage() {
                     aria-pressed={displayMode === "flip"}
                     onClick={() => setDisplayMode("flip")}
                     className={
-                      "rounded-full px-4 py-2 text-sm font-semibold focus:ring-2 focus:ring-violet-600 focus:outline-none " +
+                      "min-h-11 rounded-full px-4 py-2 text-sm font-semibold focus:ring-2 focus:ring-violet-600 focus:outline-none " +
                       (displayMode === "flip"
                         ? "bg-slate-950 text-white"
                         : "text-slate-600 hover:bg-slate-100")
@@ -425,7 +425,7 @@ export function InnerReviewPage() {
                     aria-pressed={displayMode === "simultaneous"}
                     onClick={() => setDisplayMode("simultaneous")}
                     className={
-                      "rounded-full px-4 py-2 text-sm font-semibold focus:ring-2 focus:ring-violet-600 focus:outline-none " +
+                      "min-h-11 rounded-full px-4 py-2 text-sm font-semibold focus:ring-2 focus:ring-violet-600 focus:outline-none " +
                       (displayMode === "simultaneous"
                         ? "bg-slate-950 text-white"
                         : "text-slate-600 hover:bg-slate-100")
@@ -445,7 +445,7 @@ export function InnerReviewPage() {
                         currentCard.id
                       : "/decks"
                   }
-                  className="text-sm font-semibold text-violet-800 underline-offset-4 hover:underline focus:ring-2 focus:ring-violet-600 focus:outline-none"
+                  className="inline-flex min-h-11 items-center text-sm font-semibold text-violet-800 underline-offset-4 hover:underline focus:ring-2 focus:ring-violet-600 focus:outline-none"
                 >
                   Manage current inner card
                 </Link>

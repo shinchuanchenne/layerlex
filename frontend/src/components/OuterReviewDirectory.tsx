@@ -48,13 +48,13 @@ export function OuterReviewDirectory({
         >
           <Link
             to={managementPath}
-            className="text-sm font-semibold text-cyan-200 underline-offset-4 hover:underline focus:ring-2 focus:ring-cyan-300 focus:outline-none"
+            className="inline-flex min-h-11 items-center text-sm font-semibold text-cyan-200 underline-offset-4 hover:underline focus:ring-2 focus:ring-cyan-300 focus:outline-none"
           >
             Card management
           </Link>
           <Link
             to={innerReviewPath}
-            className="text-sm font-semibold text-cyan-200 underline-offset-4 hover:underline focus:ring-2 focus:ring-cyan-300 focus:outline-none"
+            className="inline-flex min-h-11 items-center text-sm font-semibold text-cyan-200 underline-offset-4 hover:underline focus:ring-2 focus:ring-cyan-300 focus:outline-none"
           >
             {deckName ? "Inner review for this deck" : "Inner review"}
           </Link>
